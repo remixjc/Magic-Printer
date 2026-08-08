@@ -152,7 +152,7 @@ export const createApiServer = async (context: ApiContext): Promise<FastifyInsta
     if (!inputPath) return reply.code(404).send({ error: { code: "NOT_FOUND", message: "打印任务文件不存在" } });
     if (isPdf(job.mimeType, job.fileName) || isImage(job.mimeType, job.fileName)) {
       const ready = { ...job, status: "ready" as const, updatedAt: now() };
-      context.jobs.set(job.id, ready); await save(ready); return { job: ready, preview: `/api/v1/jobs/${job.id}/preview` };
+      context.jobs.set(job.id, ready); await save(ready); return { job: ready, preview: `/api/v1/jobs/${job.id}/preview`, mimeType: context.previewTypes.get(job.id) ?? "application/pdf" };
     }
     if (!isOfficeDocument(job.mimeType, job.fileName)) return reply.code(415).send({ error: { code: "UNSUPPORTED_FORMAT", message: "当前文件格式暂不支持预览" } });
     if (!context.settings.officePreview) return reply.code(409).send({ error: { code: "OFFICE_PREVIEW_DISABLED", message: "当前设备未启用 Office 预览，请在设置中开启后重试" } });
@@ -162,8 +162,9 @@ export const createApiServer = async (context: ApiContext): Promise<FastifyInsta
       const outputDir = join(context.dataDir, "previews", job.id);
       const pdfPath = await context.platform.converter.convertToPdf(inputPath, outputDir);
       context.previewFiles.set(job.id, pdfPath);
+      context.previewTypes.set(job.id, "application/pdf");
       const ready = { ...job, status: "ready" as const, updatedAt: now() };
-      context.jobs.set(job.id, ready); await save(ready); return { job: ready, preview: `/api/v1/jobs/${job.id}/preview` };
+      context.jobs.set(job.id, ready); await save(ready); return { job: ready, preview: `/api/v1/jobs/${job.id}/preview`, mimeType: "application/pdf" };
     } catch (error) { return reply.code(422).send({ error: { code: "CONVERSION_FAILED", message: error instanceof Error ? error.message : "文档转换失败" } }); }
   });
 
@@ -178,7 +179,7 @@ export const createApiServer = async (context: ApiContext): Promise<FastifyInsta
     const filePath = context.previewFiles.get(request.params.id) ?? context.files.get(request.params.id);
     if (!job || !filePath) return reply.code(404).send({ error: { code: "NOT_FOUND", message: "打印任务不存在" } });
     if (job.status === "blocked") return reply.code(409).send({ error: { code: "ENCRYPTED_FILE", message: "文件疑似已被 E-safe 加密，请解密后重新上传" } });
-    if (!isPdf(job.mimeType, job.fileName) && !isImage(job.mimeType, job.fileName)) return reply.code(409).send({ error: { code: "PREVIEW_PIPELINE_PENDING", message: "Office 文件需要先完成预览准备后再打印" } });
+    if (!context.previewFiles.has(request.params.id)) return reply.code(409).send({ error: { code: "PREVIEW_PIPELINE_PENDING", message: "请先完成预览准备后再打印" } });
     if (!job.printerId) return reply.code(409).send({ error: { code: "PRINTER_NOT_SELECTED", message: "请先在桌面端设置中选择打印机" } });
     const parsed = printOptionsSchema.safeParse(request.body ?? {});
     if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_PRINT_OPTIONS", message: parsed.error.message } });

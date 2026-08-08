@@ -26,6 +26,7 @@ export function App() {
   const [file, setFile] = useState<File | null>(null);
   const [pendingJobId, setPendingJobId] = useState<string | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewMime, setPreviewMime] = useState<string | null>(null);
   const [message, setMessage] = useState("正在连接本地服务…");
   const [theme, setTheme] = useState<"system" | "dark" | "light">("system");
   const [settings, setSettings] = useState<AppSettings | null>(null);
@@ -116,7 +117,22 @@ export function App() {
     document.querySelector<HTMLInputElement>(`[data-code-index="${Math.min(code.length, 5)}"]`)?.focus();
   };
 
-  const chooseFile = (event: ChangeEvent<HTMLInputElement>) => setFile(event.target.files?.[0] ?? null);
+  const prepareJob = async (jobId: string) => {
+    const result = await api<{ preview: string; mimeType?: string }>(`/jobs/${jobId}/prepare`, { method: "POST" });
+    const previewResponse = await fetch(withAccessToken(result.preview), { headers: accessHeaders() });
+    if (!previewResponse.ok) throw new Error("预览文件加载失败，请重试");
+    const blobUrl = URL.createObjectURL(await previewResponse.blob());
+    setPreviewUrl((current) => { if (current?.startsWith("blob:")) URL.revokeObjectURL(current); return blobUrl; });
+    setPreviewMime(result.mimeType ?? previewResponse.headers.get("content-type") ?? "application/pdf");
+    setMessage("预览已准备完成，请确认打印参数");
+  };
+
+  const chooseFile = (event: ChangeEvent<HTMLInputElement>) => {
+    setPreviewUrl((current) => { if (current?.startsWith("blob:")) URL.revokeObjectURL(current); return null; });
+    setPreviewMime(null);
+    setPendingJobId(null);
+    setFile(event.target.files?.[0] ?? null);
+  };
 
   const upload = async () => {
     if (!file) return setMessage("请先选择文件");
@@ -129,7 +145,18 @@ export function App() {
         throw new Error(error.error?.message ?? "上传失败");
       }
       const result = await response.json() as { job: PrintJob };
-      setPendingJobId(result.job.id); setFile(null); setMessage(result.job.status === "blocked" ? "文件疑似已加密，请先解密后再打印" : "文件已加入任务，请确认后开始打印"); await refresh();
+      setPendingJobId(result.job.id); setFile(null); await refresh();
+      if (result.job.status === "blocked") {
+        setPreviewUrl(null);
+        setPreviewMime(null);
+        setMessage("文件疑似已加密，请先解密后再打印");
+        return;
+      }
+      try {
+        await prepareJob(result.job.id);
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "预览准备失败");
+      }
     } catch (error) { setMessage(error instanceof Error ? error.message : "上传失败"); }
   };
 
@@ -144,8 +171,7 @@ export function App() {
   const preparePending = async () => {
     if (!pendingJobId) return setMessage("请先上传文件");
     try {
-      const result = await api<{ preview: string }>(`/jobs/${pendingJobId}/prepare`, { method: "POST" });
-      setPreviewUrl(withAccessToken(result.preview)); setMessage("预览已准备完成，请确认打印参数"); await refresh();
+      await prepareJob(pendingJobId); await refresh();
     } catch (error) { setMessage(error instanceof Error ? error.message : "预览准备失败"); await refresh(); }
   };
 
@@ -166,12 +192,12 @@ export function App() {
   };
 
   return <div className={`app-shell theme-${theme}`}>
-    {authRequired && <div className="auth-overlay"><div className="auth-card"><span className="app-mark">M</span><h2>连接 Magic Printer</h2><p>请输入桌面端“服务与安全”区域显示的 6 位局域网验证码。</p><div className="code-inputs" onPaste={handlePairingPaste}>{Array.from({ length: 6 }, (_, index) => <input key={index} data-code-index={index} inputMode="numeric" maxLength={1} value={pairingToken[index] ?? ""} onChange={(event) => updatePairingDigit(index, event.target.value)} onKeyDown={(event) => handlePairingKey(index, event)} autoFocus={index === 0} aria-label={`验证码第 ${index + 1} 位`} />)}</div><button className="primary-button" disabled={pairingToken.length !== 6} onClick={() => void pair()}>连接</button><small>{message}</small></div></div>}
+    {authRequired && <div className="auth-overlay"><div className="auth-card"><span className="app-mark">M</span><span className="kicker">LAN PAIRING</span><h2>输入配对验证码</h2><p>请在运行 Magic Printer 的电脑中打开“服务与安全”，查看当前显示的 6 位验证码。</p><div className="pairing-hint"><span>验证码来源</span><strong>桌面端显示的 6 位数字</strong></div><div className="code-inputs" onPaste={handlePairingPaste}>{Array.from({ length: 6 }, (_, index) => <input key={index} data-code-index={index} inputMode="numeric" maxLength={1} value={pairingToken[index] ?? ""} onChange={(event) => updatePairingDigit(index, event.target.value)} onKeyDown={(event) => handlePairingKey(index, event)} autoFocus={index === 0} aria-label={`验证码第 ${index + 1} 位`} />)}</div><button className="primary-button" disabled={pairingToken.length !== 6} onClick={() => void pair()}>连接</button><small>{message}</small></div></div>}
     <header className="app-header"><div className="app-brand"><span className="app-mark">M</span><strong>Magic Printer</strong><span className="app-status"><i /> {message}</span></div><div className="header-actions"><span className="version">v0.1.0 preview</span><button className="ghost-button" onClick={() => void refresh()}>刷新</button></div></header>
     <div className="app-body">
       <aside className="app-sidebar"><button className="nav-item active" onClick={() => scrollTo("print-workspace")}>▣<span>打印</span></button><button className="nav-item" onClick={() => scrollTo("history")}>◴<span>记录</span></button><button className="nav-item" onClick={() => scrollTo("settings")}>⚙<span>设置</span></button></aside>
       <main className="content"><div className="content-heading"><div><span className="kicker">PRINT WORKSPACE</span><h1>准备打印</h1><p>上传文件，确认预览，然后发送到已选择的打印机。</p></div><div className="printer-control"><label htmlFor="printer">当前打印机</label><select id="printer" value={selectedPrinterId ?? ""} onChange={(event) => void selectPrinter(event.target.value)}><option value="" disabled>请选择打印机</option>{printers.map((printer) => <option key={printer.id} value={printer.id}>{printer.name}{printer.isDefault ? "（默认）" : ""}</option>)}</select></div></div>
-        <section id="print-workspace" className="workspace-grid"><div className="upload-card">{previewUrl ? <iframe className="preview-frame" title="文档预览" src={previewUrl} /> : <><div className="upload-icon">↥</div><h2>{file ? file.name : pendingJobId ? "文件已准备" : "将文件拖放到这里"}</h2><p>{file ? `${Math.ceil(file.size / 1024)} KB · ${file.type || "未知类型"}` : pendingJobId ? "请先准备预览，再确认打印参数" : "支持 PDF、Word、Excel 和常见图片格式"}</p><label className="choose-button">选择文件<input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.bmp,.tiff" onChange={chooseFile} /></label>{file && <button className="primary-button" onClick={() => void upload()}>上传文件</button>}{pendingJobId && <button className="secondary-button" onClick={() => void preparePending()}>准备预览</button>}<small>文件默认只保存在本机，不会上传到云端。</small></>}</div><aside className="options-card"><h2>打印设置</h2><label>份数<input type="number" min="1" max="99" value={printOptions.copies} onChange={(event) => setPrintOptions({ ...printOptions, copies: Math.min(99, Math.max(1, Number(event.target.value) || 1)) })} /></label><label>纸张<select value={printOptions.paperSize} onChange={(event) => setPrintOptions({ ...printOptions, paperSize: event.target.value })}>{paperSizes.map((size) => <option key={size}>{size}</option>)}</select></label><label>方向<select value={printOptions.orientation} onChange={(event) => setPrintOptions({ ...printOptions, orientation: event.target.value as PrintOptions["orientation"] })}><option value="portrait">纵向</option><option value="landscape">横向</option></select></label><label>颜色<select value={printOptions.color} onChange={(event) => setPrintOptions({ ...printOptions, color: event.target.value as PrintOptions["color"] })}><option value="color" disabled={printerCapabilities?.color === false}>彩色</option><option value="grayscale">黑白</option></select></label><label>双面<select value={printOptions.duplex} onChange={(event) => setPrintOptions({ ...printOptions, duplex: event.target.value as PrintOptions["duplex"] })}><option value="none">单面</option><option value="long-edge" disabled={printerCapabilities?.duplex === false}>长边翻页</option><option value="short-edge" disabled={printerCapabilities?.duplex === false}>短边翻页</option></select></label><div className="dependency"><span>Office 预览</span><strong className={dependencies?.libreOffice.available ? "ok" : "muted"}>{dependencies?.libreOffice.available ? "可用" : "未安装"}</strong></div><button className="primary-button" disabled={!selectedPrinterId || !pendingJobId || !previewUrl} onClick={() => void printPending()}>开始打印</button></aside></section>
+        <section id="print-workspace" className="workspace-grid"><div className="upload-card">{previewUrl ? (previewMime?.startsWith("image/") ? <img className="preview-image" alt="文档预览" src={previewUrl} /> : <iframe className="preview-frame" title="文档预览" src={previewUrl} />) : <><div className="upload-icon">↥</div><h2>{file ? file.name : pendingJobId ? "文件已准备" : "将文件拖放到这里"}</h2><p>{file ? `${Math.ceil(file.size / 1024)} KB · ${file.type || "未知类型"}` : pendingJobId ? "请先准备预览，再确认打印参数" : "支持 PDF、Word、Excel 和常见图片格式"}</p><label className="choose-button">选择文件<input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg,.webp,.bmp,.tiff" onChange={chooseFile} /></label>{file && <button className="primary-button" onClick={() => void upload()}>上传文件</button>}{pendingJobId && <button className="secondary-button" onClick={() => void preparePending()}>准备预览</button>}<small>文件默认只保存在本机，不会上传到云端。</small></>}</div><aside className="options-card"><h2>打印设置</h2><label>份数<input type="number" min="1" max="99" value={printOptions.copies} onChange={(event) => setPrintOptions({ ...printOptions, copies: Math.min(99, Math.max(1, Number(event.target.value) || 1)) })} /></label><label>纸张<select value={printOptions.paperSize} onChange={(event) => setPrintOptions({ ...printOptions, paperSize: event.target.value })}>{paperSizes.map((size) => <option key={size}>{size}</option>)}</select></label><label>方向<select value={printOptions.orientation} onChange={(event) => setPrintOptions({ ...printOptions, orientation: event.target.value as PrintOptions["orientation"] })}><option value="portrait">纵向</option><option value="landscape">横向</option></select></label><label>颜色<select value={printOptions.color} onChange={(event) => setPrintOptions({ ...printOptions, color: event.target.value as PrintOptions["color"] })}><option value="color" disabled={printerCapabilities?.color === false}>彩色</option><option value="grayscale">黑白</option></select></label><label>双面<select value={printOptions.duplex} onChange={(event) => setPrintOptions({ ...printOptions, duplex: event.target.value as PrintOptions["duplex"] })}><option value="none">单面</option><option value="long-edge" disabled={printerCapabilities?.duplex === false}>长边翻页</option><option value="short-edge" disabled={printerCapabilities?.duplex === false}>短边翻页</option></select></label><div className="dependency"><span>Office 预览</span><strong className={dependencies?.libreOffice.available ? "ok" : "muted"}>{dependencies?.libreOffice.available ? "可用" : "未安装"}</strong></div><button className="primary-button" disabled={!selectedPrinterId || !pendingJobId || !previewUrl} onClick={() => void printPending()}>开始打印</button></aside></section>
         <section id="history" className="history"><div className="section-title"><div><span className="kicker">RECENT JOBS</span><h2>最近记录</h2></div><span>保留最近七天</span></div>{jobs.length === 0 ? <div className="empty-state">还没有打印记录。上传第一个文件开始吧。</div> : <div className="job-list">{jobs.map((job) => <div className="job-row" key={job.id}><span className={`file-type ${job.mimeType.includes("pdf") ? "pdf" : "doc"}`}>{job.fileName.split(".").pop()?.toUpperCase()}</span><div><strong>{job.fileName}</strong><small>{job.createdAt} · {job.printerId ?? "未选择打印机"}</small></div><span className={`job-status ${job.status}`}>{job.status}</span><button className="ghost-button" onClick={() => api(`/jobs/${job.id}`, { method: "DELETE" }).then(refresh)}>删除</button></div>)}</div>}</section>
         <section className="service-card"><div><span className="kicker">LOCAL SERVICE</span><h2>服务与安全</h2><p>{security?.lanAccess ? "局域网访问已开启，远程设备必须使用 6 位验证码。" : "当前仅允许本机访问。"}</p></div><div className="service-status"><span><i className="ok-dot" /> 本地服务在线</span><span>LibreOffice：{dependencies?.libreOffice.available ? "可用" : "未安装"}</span><span>E-safe：{dependencies?.encryptionDetector.available ? dependencies.encryptionDetector.provider : "等待接入"}</span>{security?.accessUrls?.map((url) => <code key={url}>访问 {url}</code>)}{security?.pairingCode && <div className="pairing-display" title="请只提供给可信设备">{security.pairingCode.split("").map((digit, index) => <b key={`${digit}-${index}`}>{digit}</b>)}</div>}<button className="ghost-button" onClick={() => void toggleLanAccess()}>{security?.lanAccess ? "关闭局域网访问" : "开启局域网访问"}</button></div></section>
         <section id="settings" className="settings-card"><div><span className="kicker">SETTINGS</span><h2>应用设置</h2><p>桌面应用和 WEB 打印页面共享这些本地配置。</p></div><div className="settings-grid"><label>主题<select value={settings?.theme ?? "system"} onChange={(event) => void saveSettings({ theme: event.target.value as AppSettings["theme"] })}><option value="system">跟随系统</option><option value="dark">深色</option><option value="light">浅色</option></select></label><label>开机启动<select value={settings?.launchAtStartup ? "on" : "off"} onChange={(event) => void saveSettings({ launchAtStartup: event.target.value === "on" })}><option value="off">关闭</option><option value="on">开启</option></select></label><label>服务端口<input type="number" min="1024" max="65535" value={settings?.server.port ?? 17890} onChange={(event) => void saveSettings({ server: { ...(settings?.server ?? { host: "127.0.0.1", port: 17890, lanAccess: false }), port: Number(event.target.value) } })} /></label><div className="setting-note"><strong>预览环境</strong><span>LibreOffice：{dependencies?.libreOffice.available ? "已检测" : "未安装"}</span><span>E-safe：{dependencies?.encryptionDetector.available ? "已接入" : "待配置厂商检测器"}</span></div></div></section>
