@@ -102,6 +102,7 @@ docs/               产品、技术、开发和验收文档
 - [开发指南](docs/DEVELOPMENT.md)
 - [实施路线图与验收计划](docs/ROADMAP.md)
 - [三平台真实设备验证矩阵](docs/REAL_DEVICE_TEST_MATRIX.md)
+- [macOS 签名与公证配置](docs/MACOS_SIGNING.md)
 - [许可说明](docs/LICENSE_GUIDE.md)
 - [项目介绍页说明](website/README.md)
 
