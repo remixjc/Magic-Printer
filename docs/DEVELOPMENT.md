@@ -130,7 +130,7 @@ pnpm --filter @magic-printer/database rebuild better-sqlite3
 ## 当前已知限制
 
 - 依赖环境缺少 LibreOffice 时只报告不可用，不会自动安装。
-- E-safe 检测器暂时返回 `not-configured`。
+- E-safe 正式厂商接口不纳入当前范围，项目采用本地启发式风险拦截器并默认阻断 `encrypted`/`suspected` 文件；`UnconfiguredEncryptionDetector` 仅保留作兼容性备用实现。
 - 当前已接入本地启发式检测器：识别 `Esafenet` 等文件标记及异常 Office 容器时阻断任务；该策略用于风险拦截，不等同于厂商官方检测结果。
 - 风险拦截任务会立即删除源文件和预览映射，但保留阻断记录，便于用户查看原因并主动删除历史记录。
 - 未知格式会被 API 明确阻止，避免未经转换直接误印；Office 需要先经过 LibreOffice 转换。
