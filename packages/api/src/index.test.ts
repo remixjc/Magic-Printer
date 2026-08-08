@@ -1,5 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdir, writeFile, rm } from "node:fs/promises";
+import { join } from "node:path";
 import { createApiServer, type ApiContext } from "./index.js";
 import { createDefaultPlatformServices } from "@magic-printer/platform";
 
@@ -59,4 +61,47 @@ test("LAN pairing returns a short-lived session token", async () => {
   assert.equal(typeof paired.json().token, "string");
   assert.equal(paired.json().expiresIn, 86400);
   await app.close();
+});
+
+test("print options are rejected when printer capabilities do not support them", async () => {
+  const context = makeContext();
+  const dataDir = join("/tmp", `magic-printer-api-capabilities-${Date.now()}`);
+  await mkdir(dataDir, { recursive: true });
+  const filePath = join(dataDir, "sample.pdf");
+  await writeFile(filePath, "%PDF-1.4\n%%EOF\n");
+  const printer = {
+    id: "restricted-printer",
+    name: "Restricted Printer",
+    isDefault: true,
+    status: "online" as const,
+    capabilities: { color: false, duplex: false, paperSizes: ["A4"] }
+  };
+  context.settings.selectedPrinterId = printer.id;
+  context.platform = {
+    ...context.platform,
+    printers: {
+      listPrinters: async () => [printer],
+      printPdf: async () => ({}),
+      cancel: async () => undefined
+    }
+  };
+  const job = {
+    id: "restricted-job",
+    fileName: "sample.pdf",
+    mimeType: "application/pdf",
+    status: "ready" as const,
+    printerId: printer.id,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  context.jobs.set(job.id, job);
+  context.files.set(job.id, filePath);
+  context.previewFiles.set(job.id, filePath);
+  context.previewTypes.set(job.id, "application/pdf");
+  const app = await createApiServer(context);
+  const response = await app.inject({ method: "POST", url: `/api/v1/jobs/${job.id}/print`, payload: { color: "color", duplex: "long-edge", paperSize: "A4" } });
+  assert.equal(response.statusCode, 409);
+  assert.equal(response.json().error.code, "UNSUPPORTED_COLOR");
+  await app.close();
+  await rm(dataDir, { recursive: true, force: true });
 });
