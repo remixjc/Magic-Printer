@@ -111,7 +111,8 @@ const createWindow = async (url: string) => {
 };
 
 const createTray = (url: string) => {
-  const image = nativeImage.createFromBuffer(Buffer.from(traySvg));
+  const image = nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(traySvg).toString("base64")}`);
+  if (image.isEmpty()) console.warn("Failed to load Magic Printer tray icon");
   if (process.platform === "darwin") image.setTemplateImage(true);
   tray = new Tray(image.resize({ width: 18, height: 18 }));
   tray.setToolTip("Magic Printer");

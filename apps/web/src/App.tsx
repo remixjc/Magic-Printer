@@ -8,6 +8,16 @@ const api = async <T,>(path: string, init?: RequestInit): Promise<T> => {
   return response.status === 204 ? (undefined as T) : response.json();
 };
 
+const accessHeaders = () => {
+  const token = localStorage.getItem("magic-printer-access-token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+const withAccessToken = (url: string) => {
+  const token = localStorage.getItem("magic-printer-access-token");
+  return token ? `${url}${url.includes("?") ? "&" : "?"}access_token=${encodeURIComponent(token)}` : url;
+};
+
 export function App() {
   const [printers, setPrinters] = useState<PrinterInfo[]>([]);
   const [selectedPrinterId, setSelectedPrinterId] = useState<string | null>(null);
@@ -112,8 +122,12 @@ export function App() {
     if (!file) return setMessage("请先选择文件");
     const form = new FormData(); form.append("file", file);
     try {
-      const response = await fetch("/api/v1/uploads", { method: "POST", body: form });
-      if (!response.ok) throw new Error((await response.json()).error?.message ?? "上传失败");
+      const response = await fetch("/api/v1/uploads", { method: "POST", headers: accessHeaders(), body: form });
+      if (!response.ok) {
+        const error = await response.json() as { error?: { code?: string; message?: string } };
+        if (response.status === 401 || error.error?.code === "AUTH_REQUIRED") setAuthRequired(true);
+        throw new Error(error.error?.message ?? "上传失败");
+      }
       const result = await response.json() as { job: PrintJob };
       setPendingJobId(result.job.id); setFile(null); setMessage(result.job.status === "blocked" ? "文件疑似已加密，请先解密后再打印" : "文件已加入任务，请确认后开始打印"); await refresh();
     } catch (error) { setMessage(error instanceof Error ? error.message : "上传失败"); }
@@ -131,7 +145,7 @@ export function App() {
     if (!pendingJobId) return setMessage("请先上传文件");
     try {
       const result = await api<{ preview: string }>(`/jobs/${pendingJobId}/prepare`, { method: "POST" });
-      setPreviewUrl(result.preview); setMessage("预览已准备完成，请确认打印参数"); await refresh();
+      setPreviewUrl(withAccessToken(result.preview)); setMessage("预览已准备完成，请确认打印参数"); await refresh();
     } catch (error) { setMessage(error instanceof Error ? error.message : "预览准备失败"); await refresh(); }
   };
 
@@ -152,7 +166,7 @@ export function App() {
   };
 
   return <div className={`app-shell theme-${theme}`}>
-    {authRequired && <div className="auth-overlay"><div className="auth-card"><span className="app-mark">M</span><h2>连接 Magic Printer</h2><p>请输入桌面端显示的 6 位局域网验证码。</p><div className="code-inputs" onPaste={handlePairingPaste}>{Array.from({ length: 6 }, (_, index) => <input key={index} data-code-index={index} inputMode="numeric" maxLength={1} value={pairingToken[index] ?? ""} onChange={(event) => updatePairingDigit(index, event.target.value)} onKeyDown={(event) => handlePairingKey(index, event)} autoFocus={index === 0} aria-label={`验证码第 ${index + 1} 位`} />)}</div><button className="primary-button" disabled={pairingToken.length !== 6} onClick={() => void pair()}>连接</button><small>{message}</small></div></div>}
+    {authRequired && <div className="auth-overlay"><div className="auth-card"><span className="app-mark">M</span><h2>连接 Magic Printer</h2><p>请输入桌面端“服务与安全”区域显示的 6 位局域网验证码。</p><div className="code-inputs" onPaste={handlePairingPaste}>{Array.from({ length: 6 }, (_, index) => <input key={index} data-code-index={index} inputMode="numeric" maxLength={1} value={pairingToken[index] ?? ""} onChange={(event) => updatePairingDigit(index, event.target.value)} onKeyDown={(event) => handlePairingKey(index, event)} autoFocus={index === 0} aria-label={`验证码第 ${index + 1} 位`} />)}</div><button className="primary-button" disabled={pairingToken.length !== 6} onClick={() => void pair()}>连接</button><small>{message}</small></div></div>}
     <header className="app-header"><div className="app-brand"><span className="app-mark">M</span><strong>Magic Printer</strong><span className="app-status"><i /> {message}</span></div><div className="header-actions"><span className="version">v0.1.0 preview</span><button className="ghost-button" onClick={() => void refresh()}>刷新</button></div></header>
     <div className="app-body">
       <aside className="app-sidebar"><button className="nav-item active" onClick={() => scrollTo("print-workspace")}>▣<span>打印</span></button><button className="nav-item" onClick={() => scrollTo("history")}>◴<span>记录</span></button><button className="nav-item" onClick={() => scrollTo("settings")}>⚙<span>设置</span></button></aside>
