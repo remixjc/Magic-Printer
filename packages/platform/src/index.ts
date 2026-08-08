@@ -1,5 +1,6 @@
 import type { PrinterInfo, PrintOptions } from "@magic-printer/shared";
 import { LibreOfficeConverter, type DocumentConverter } from "@magic-printer/converters";
+import { readFile } from "node:fs/promises";
 
 export type NativePrintResult = { nativeJobId?: string };
 
@@ -45,6 +46,22 @@ export class UnconfiguredEncryptionDetector implements EncryptionDetector {
   }
 }
 
+export class HeuristicEncryptionDetector implements EncryptionDetector {
+  private readonly markers = [Buffer.from("Esafenet", "ascii"), Buffer.from("E-safe", "ascii"), Buffer.from("ESAFE", "ascii")];
+
+  async inspect(filePath: string): Promise<EncryptionDetection> {
+    const content = await readFile(filePath);
+    const sample = content.subarray(0, Math.min(content.length, 64 * 1024));
+    const marker = this.markers.find((item) => sample.includes(item));
+    if (marker) return { verdict: "encrypted", provider: "heuristic-local", detail: `检测到文件标记 ${marker.toString("ascii")}` };
+    const extension = filePath.toLowerCase().split(".").pop();
+    const office = ["doc", "docx", "xls", "xlsx"].includes(extension ?? "");
+    const looksLikeZip = content.subarray(0, 4).toString("ascii") === "PK\u0003\u0004";
+    if (office && !looksLikeZip) return { verdict: "suspected", provider: "heuristic-local", detail: "Office 文件不是标准 ZIP 容器" };
+    return { verdict: "plain", provider: "heuristic-local" };
+  }
+}
+
 export type PlatformServices = {
   printers: PrinterAdapter;
   detectLibreOffice: () => Promise<{ available: boolean; version?: string; path?: string }>;
@@ -55,7 +72,7 @@ export type PlatformServices = {
 export const createDefaultPlatformServices = (): PlatformServices => ({
   printers: new MockPrinterAdapter(),
   detectLibreOffice: async () => ({ available: false }),
-  encryption: new UnconfiguredEncryptionDetector(),
+  encryption: new HeuristicEncryptionDetector(),
   converter: new LibreOfficeConverter()
 });
 

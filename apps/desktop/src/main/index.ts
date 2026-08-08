@@ -6,7 +6,7 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createApiServer } from "@magic-printer/api";
 import { LocalDatabase } from "@magic-printer/database";
-import { LibreOfficeConverter, UnconfiguredEncryptionDetector, type PlatformServices, type PrinterAdapter } from "@magic-printer/platform";
+import { HeuristicEncryptionDetector, LibreOfficeConverter, type PlatformServices, type PrinterAdapter } from "@magic-printer/platform";
 import type { PrinterInfo, PrintOptions } from "@magic-printer/shared";
 import electronUpdater from "electron-updater";
 const { autoUpdater } = electronUpdater;
@@ -175,7 +175,7 @@ const bootstrap = async () => {
   const platform: PlatformServices = {
     printers: new ElectronPrinterAdapter(getPrintWindow),
     detectLibreOffice: () => converter.probe(),
-    encryption: new UnconfiguredEncryptionDetector(),
+    encryption: new HeuristicEncryptionDetector(),
     converter
   };
   const staticDir = resolve(app.getAppPath(), "../web/dist");

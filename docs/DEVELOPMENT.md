@@ -112,6 +112,7 @@ pnpm --filter @magic-printer/database rebuild better-sqlite3
 
 - 依赖环境缺少 LibreOffice 时只报告不可用，不会自动安装。
 - E-safe 检测器暂时返回 `not-configured`。
+- 当前已接入本地启发式检测器：识别 `Esafenet` 等文件标记及异常 Office 容器时阻断任务；该策略用于风险拦截，不等同于厂商官方检测结果。
 - 未知格式会被 API 明确阻止，避免未经转换直接误印；Office 需要先经过 LibreOffice 转换。
 - LAN 绑定地址切换和完整会话过期策略仍需在桌面设置页完成；当前已先接入访问口令校验。
 - 自动更新仅在签名、打包后的应用中生效；开发模式下不会访问 GitHub Releases。
