@@ -1,6 +1,6 @@
 import { execFile } from "node:child_process";
 import { createReadStream } from "node:fs";
-import { mkdir, readdir } from "node:fs/promises";
+import { access, mkdir } from "node:fs/promises";
 import { basename, extname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { promisify } from "node:util";
@@ -64,7 +64,7 @@ export class LibreOfficeConverter implements DocumentConverter {
       inputPath
     ], { timeout: 120_000, windowsHide: true });
     const expected = join(outputDir, `${basename(inputPath, extname(inputPath))}.pdf`);
-    try { await readdir(outputDir); } catch { throw new Error("LibreOffice 未生成预览文件"); }
+    try { await access(expected); } catch { throw new Error("LibreOffice 未生成预览文件"); }
     return expected;
   }
 }
