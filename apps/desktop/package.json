@@ -32,7 +32,7 @@
     "files": ["dist/**/*", "package.json", "../web/dist/**/*"],
     "mac": { "target": ["dmg", "zip"], "category": "public.app-category.utilities" },
     "win": { "target": ["nsis"] },
-    "linux": { "target": ["AppImage", "deb"], "category": "Utility", "packageName": "magic-printer", "executableName": "magic-printer", "artifactName": "magic-printer-${version}-${arch}.${ext}" },
+    "linux": { "target": ["AppImage", "deb"], "category": "Utility", "executableName": "magic-printer", "artifactName": "magic-printer-${version}-${arch}.${ext}" },
     "publish": [{ "provider": "github", "owner": "remixjc", "repo": "Magic-Printer" }]
   }
 }
