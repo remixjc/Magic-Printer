@@ -57,6 +57,16 @@ pnpm test
 pnpm build
 ```
 
+### 本地文件诊断
+
+可以使用本地启发式检测器检查文件，不会上传文件：
+
+```bash
+pnpm inspect:file -- "/path/to/document.docx"
+```
+
+返回码为 `0` 表示未发现风险，返回码为 `10` 表示文件为 `encrypted` 或 `suspected`，返回码为 `1` 表示文件读取或检测失败。
+
 ## 发布流程
 
 Release 工作流通过版本 Tag 触发。建议按以下顺序发布：
