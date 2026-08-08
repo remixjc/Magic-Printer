@@ -51,7 +51,7 @@ export type PrintJob = {
 
 export const printOptionsSchema = z.object({
   copies: z.number().int().min(1).max(99).default(1),
-  pageRange: z.string().max(100).optional(),
+  pageRange: z.string().max(100).regex(/^\d+(?:-\d+)?(?:,\d+(?:-\d+)?)*$/, "页码范围格式应为 1-3,5,8-10").optional(),
   orientation: z.enum(["portrait", "landscape"]).default("portrait"),
   color: z.enum(["color", "grayscale"]).default("color"),
   duplex: z.enum(["none", "long-edge", "short-edge"]).default("none"),

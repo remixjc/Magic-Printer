@@ -105,3 +105,26 @@ test("print options are rejected when printer capabilities do not support them",
   await app.close();
   await rm(dataDir, { recursive: true, force: true });
 });
+
+test("invalid page ranges are rejected before printing", async () => {
+  const context = makeContext();
+  context.settings.selectedPrinterId = "mock-default";
+  const app = await createApiServer(context);
+  const job = {
+    id: "page-range-job",
+    fileName: "sample.pdf",
+    mimeType: "application/pdf",
+    status: "ready" as const,
+    printerId: "mock-default",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  context.jobs.set(job.id, job);
+  context.files.set(job.id, "/tmp/sample.pdf");
+  context.previewFiles.set(job.id, "/tmp/sample.pdf");
+  context.previewTypes.set(job.id, "application/pdf");
+  const response = await app.inject({ method: "POST", url: `/api/v1/jobs/${job.id}/print`, payload: { pageRange: "3--1" } });
+  assert.equal(response.statusCode, 400);
+  assert.equal(response.json().error.code, "INVALID_PRINT_OPTIONS");
+  await app.close();
+});

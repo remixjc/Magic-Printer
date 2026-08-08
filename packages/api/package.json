@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "scripts": { "build": "tsc -p tsconfig.json", "typecheck": "tsc -p tsconfig.json --noEmit", "test": "pnpm build && node --test dist/index.test.js", "lint": "tsc -p tsconfig.json --noEmit" },
+  "scripts": { "build": "pnpm --filter @magic-printer/shared build && tsc -p tsconfig.json", "typecheck": "tsc -p tsconfig.json --noEmit", "test": "pnpm build && node --test dist/index.test.js", "lint": "tsc -p tsconfig.json --noEmit" },
   "dependencies": {
     "@fastify/cors": "^10.0.1",
     "@fastify/multipart": "^9.0.3",
