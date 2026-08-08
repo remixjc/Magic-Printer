@@ -29,13 +29,13 @@ importers:
       '@magic-printer/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      electron-updater:
+        specifier: ^6.3.9
+        version: 6.8.9
     devDependencies:
       electron:
         specifier: ^33.2.1
         version: 33.4.11
-      electron-updater:
-        specifier: ^6.3.9
-        version: 6.8.9
       electron-builder:
         specifier: ^25.1.8
         version: 25.1.8(electron-builder-squirrel-windows@25.1.8)

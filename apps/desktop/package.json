@@ -18,11 +18,11 @@
     "@magic-printer/api": "workspace:*",
     "@magic-printer/database": "workspace:*",
     "@magic-printer/platform": "workspace:*",
-    "@magic-printer/shared": "workspace:*"
+    "@magic-printer/shared": "workspace:*",
+    "electron-updater": "^6.3.9"
   },
   "devDependencies": {
     "electron": "^33.2.1",
-    "electron-updater": "^6.3.9",
     "electron-builder": "^25.1.8"
   },
   "build": {
