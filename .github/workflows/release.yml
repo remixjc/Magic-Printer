@@ -48,9 +48,16 @@ jobs:
         working-directory: apps/desktop
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
-          CSC_IDENTITY_AUTO_DISCOVERY: ${{ secrets.APPLE_ID != '' && secrets.APPLE_APP_SPECIFIC_PASSWORD != '' && secrets.APPLE_TEAM_ID != '' && 'true' || 'false' }}
+          # Only pass the Windows certificate to the Windows job. Passing a
+          # Windows CSC_LINK to macOS makes electron-builder interpret it as a
+          # local path and fail with "apps/desktop not a file" when the secret
+          # is unavailable on the runner.
+          CSC_LINK: ${{ matrix.platform == 'win' && secrets.WINDOWS_CSC_LINK || '' }}
+          CSC_KEY_PASSWORD: ${{ matrix.platform == 'win' && secrets.WINDOWS_CSC_KEY_PASSWORD || '' }}
+          # Keep macOS artifacts unsigned in the current public workflow. This
+          # avoids a hard dependency on Apple signing credentials; signing can
+          # be enabled later by changing this value and adding the certificate.
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
@@ -67,7 +74,10 @@ jobs:
           const path = require('node:path');
           const dir = path.resolve('../../release');
           const platform = process.env.RELEASE_PLATFORM;
-          const files = fs.readdirSync(dir).filter((name) => !name.startsWith('SHA256SUMS-'));
+          const files = fs.readdirSync(dir).filter((name) => {
+            if (name.startsWith('SHA256SUMS-')) return false;
+            return fs.statSync(path.join(dir, name)).isFile();
+          });
           const lines = files.map((name) => {
             const hash = crypto.createHash('sha256').update(fs.readFileSync(path.join(dir, name))).digest('hex');
             return `${hash}  ${name}`;
