@@ -1,0 +1,36 @@
+{
+  "name": "@magic-printer/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Local-first cross-platform printing workspace",
+  "author": "remixjc",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "dev": "pnpm build && electron .",
+    "build": "pnpm --filter @magic-printer/web build && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test",
+    "lint": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@magic-printer/api": "workspace:*",
+    "@magic-printer/database": "workspace:*",
+    "@magic-printer/platform": "workspace:*",
+    "@magic-printer/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-updater": "^6.3.9",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.remixjc.magic-printer",
+    "productName": "Magic Printer",
+    "directories": { "output": "../../release" },
+    "files": ["dist/**/*", "package.json", "../web/dist/**/*"],
+    "mac": { "target": ["dmg", "zip"], "category": "public.app-category.utilities" },
+    "win": { "target": ["nsis"] },
+    "linux": { "target": ["AppImage", "deb"], "category": "Utility" }
+  }
+}

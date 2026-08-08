@@ -1,0 +1,21 @@
+{
+  "name": "magic-printer",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Local-first cross-platform printing workspace",
+  "license": "PolyForm-Noncommercial-1.0.0",
+  "author": "remixjc",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "pnpm --filter @magic-printer/desktop dev",
+    "dev:web": "pnpm --filter @magic-printer/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r build && pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.2"
+  }
+}

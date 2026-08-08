@@ -1,0 +1,87 @@
+import { execFile } from "node:child_process";
+import { createReadStream } from "node:fs";
+import { mkdir, readdir } from "node:fs/promises";
+import { basename, extname, join } from "node:path";
+import { pathToFileURL } from "node:url";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
+
+export type ConversionProbe = { available: boolean; path?: string; version?: string };
+
+export interface DocumentConverter {
+  probe(): Promise<ConversionProbe>;
+  convertToPdf(inputPath: string, outputDir: string): Promise<string>;
+}
+
+const candidates = process.platform === "win32"
+  ? ["soffice.exe", "libreoffice.exe"]
+  : process.platform === "darwin"
+    ? ["/Applications/LibreOffice.app/Contents/MacOS/soffice", "soffice"]
+    : ["libreoffice", "soffice"];
+
+const findExecutable = async (): Promise<string | undefined> => {
+  for (const candidate of candidates) {
+    try {
+      if (candidate.includes("/")) return candidate;
+      const command = process.platform === "win32" ? "where" : "which";
+      const result = await execFileAsync(command, [candidate]);
+      const path = result.stdout.trim().split(/\r?\n/)[0];
+      if (path) return path;
+    } catch { /* try next candidate */ }
+  }
+  return undefined;
+};
+
+export class LibreOfficeConverter implements DocumentConverter {
+  private cachedPath: string | undefined;
+
+  async probe(): Promise<ConversionProbe> {
+    this.cachedPath ??= await findExecutable();
+    if (!this.cachedPath) return { available: false };
+    try {
+      const result = await execFileAsync(this.cachedPath, ["--version"]);
+      return { available: true, path: this.cachedPath, version: result.stdout.trim() };
+    } catch {
+      return { available: true, path: this.cachedPath };
+    }
+  }
+
+  async convertToPdf(inputPath: string, outputDir: string): Promise<string> {
+    const probe = await this.probe();
+    if (!probe.available || !probe.path) throw new Error("LibreOffice 未安装或不可用");
+    await mkdir(outputDir, { recursive: true });
+    const userProfile = join(outputDir, ".lo-profile");
+    await mkdir(userProfile, { recursive: true });
+    await execFileAsync(probe.path, [
+      "--headless",
+      "--nologo",
+      "--nodefault",
+      "--nofirststartwizard",
+      `-env:UserInstallation=${pathToFileURL(userProfile).toString()}`,
+      "--convert-to", "pdf",
+      "--outdir", outputDir,
+      inputPath
+    ], { timeout: 120_000, windowsHide: true });
+    const expected = join(outputDir, `${basename(inputPath, extname(inputPath))}.pdf`);
+    try { await readdir(outputDir); } catch { throw new Error("LibreOffice 未生成预览文件"); }
+    return expected;
+  }
+}
+
+export const isOfficeDocument = (mimeType: string, fileName: string): boolean => {
+  const extension = extname(fileName).toLowerCase();
+  return mimeType.includes("word") || mimeType.includes("spreadsheet") || [".doc", ".docx", ".xls", ".xlsx"].includes(extension);
+};
+
+export const isPdf = (mimeType: string, fileName: string): boolean => mimeType === "application/pdf" || extname(fileName).toLowerCase() === ".pdf";
+
+export const isImage = (mimeType: string, fileName: string): boolean => {
+  const extension = extname(fileName).toLowerCase();
+  return mimeType.startsWith("image/") || [".png", ".jpg", ".jpeg", ".webp", ".bmp", ".gif", ".tif", ".tiff"].includes(extension);
+};
+
+export const isSupportedDocument = (mimeType: string, fileName: string): boolean => isPdf(mimeType, fileName) || isOfficeDocument(mimeType, fileName) || isImage(mimeType, fileName);
+
+// Kept as a named export so future preview pipelines can stream without changing their public contract.
+export const openPreviewStream = (filePath: string) => createReadStream(filePath);

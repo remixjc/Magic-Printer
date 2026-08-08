@@ -1,0 +1,58 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+out/
+release/
+artifacts/
+coverage/
+*.tsbuildinfo
+
+# Runtime data
+data/
+logs/
+uploads/
+previews/
+tmp/
+*.sqlite
+*.sqlite3
+*.db
+*.db-shm
+*.db-wal
+*.log
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.pfx
+*.cer
+*.key
+*.mobileprovision
+
+# IDE and OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Test artifacts
+playwright-report/
+test-results/
+blob-report/
+
+# Electron builder credentials/cache
+electron-builder.env
+.electron-cache/
+.cache/
+
+# Misc
+*.swp
+*.swo
+*~
