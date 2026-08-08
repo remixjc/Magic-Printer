@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Magic Printer</title>
+  <desc id="desc">A printer producing a sheet of paper with a secure local status light.</desc>
+  <defs>
+    <linearGradient id="surface" x1="64" y1="32" x2="448" y2="480" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8b7cf6"/>
+      <stop offset="1" stop-color="#5b4bd8"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="172" y1="74" x2="344" y2="270" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#e7e9ff"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="#0f1118"/>
+  <rect x="36" y="36" width="440" height="440" rx="108" fill="url(#surface)" opacity=".16"/>
+  <path d="M164 58h184v154H164z" fill="url(#paper)"/>
+  <path d="M164 58h184v154H164z" fill="none" stroke="#b8b7ff" stroke-width="10" stroke-linejoin="round"/>
+  <path d="M126 188h260c38 0 68 30 68 68v116h-74v68H132v-68H58V256c0-38 30-68 68-68Z" fill="#24263a" stroke="#9b91ff" stroke-width="10" stroke-linejoin="round"/>
+  <path d="M144 314h224v126H144z" fill="#fafaff" stroke="#9b91ff" stroke-width="10" stroke-linejoin="round"/>
+  <path d="M184 350h144M184 382h106" stroke="#b7b9d7" stroke-width="12" stroke-linecap="round"/>
+  <circle cx="370" cy="246" r="18" fill="#4ad6a0"/>
+  <circle cx="370" cy="246" r="32" fill="#4ad6a0" opacity=".16"/>
+</svg>

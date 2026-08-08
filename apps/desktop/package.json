@@ -28,6 +28,7 @@
   "build": {
     "appId": "com.remixjc.magic-printer",
     "productName": "Magic Printer",
+    "icon": "build/icon.png",
     "directories": { "output": "../../release" },
     "files": ["dist/**/*", "package.json", "../web/dist/**/*"],
     "mac": { "target": ["dmg", "zip"], "category": "public.app-category.utilities" },

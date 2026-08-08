@@ -21,7 +21,7 @@ let cleanupTimer: NodeJS.Timeout | null = null;
 let restartTimer: NodeJS.Timeout | null = null;
 let boundServer = { host: "127.0.0.1", port: 17890 };
 
-const traySvg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#6755db"/><path d="M9 5h14v7H9zM7 12h18a3 3 0 0 1 3 3v8h-5v5H9v-5H4v-8a3 3 0 0 1 3-3Zm4 9v5h10v-5Z" fill="none" stroke="white" stroke-width="2" stroke-linejoin="round"/></svg>`;
+const traySvg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#0f1118"/><path d="M10 4h12v9H10zM8 12h16a4 4 0 0 1 4 4v7h-5v5H9v-5H4v-7a4 4 0 0 1 4-4Z" fill="#29264f" stroke="#9b91ff" stroke-width="1.8" stroke-linejoin="round"/><path d="M11 20h10v7H11z" fill="#fafaff"/><circle cx="24" cy="16" r="1.6" fill="#4ad6a0"/></svg>`;
 
 const getAccessUrls = () => Object.values(networkInterfaces()).flatMap((items) => (items ?? []).filter((item) => !item.internal && item.family === "IPv4").map((item) => `http://${item.address}:${boundServer.port}`));
 
