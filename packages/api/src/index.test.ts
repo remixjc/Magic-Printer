@@ -130,3 +130,31 @@ test("invalid page ranges are rejected before printing", async () => {
   assert.equal(response.json().error.code, "INVALID_PRINT_OPTIONS");
   await app.close();
 });
+
+test("encrypted files are blocked before preview and printing", async () => {
+  const context = makeContext();
+  context.platform = {
+    ...context.platform,
+    encryption: { inspect: async () => ({ verdict: "encrypted" as const, provider: "test-esafe" }) }
+  };
+  const app = await createApiServer(context);
+  const boundary = "----magic-printer-test-boundary";
+  const multipartBody = Buffer.from([
+    `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="protected.pdf"\r\nContent-Type: application/pdf\r\n\r\nencrypted fixture\r\n`,
+    `--${boundary}--\r\n`
+  ].join(""));
+  const response = await app.inject({
+    method: "POST",
+    url: "/api/v1/uploads",
+    headers: { "content-type": `multipart/form-data; boundary=${boundary}` },
+    payload: multipartBody
+  });
+  assert.equal(response.statusCode, 201);
+  const job = response.json().job;
+  assert.equal(job.status, "blocked");
+  assert.match(job.error, /E-safe/);
+  const prepare = await app.inject({ method: "POST", url: `/api/v1/jobs/${job.id}/prepare` });
+  assert.equal(prepare.statusCode, 409);
+  assert.equal(prepare.json().error.code, "ENCRYPTED_FILE");
+  await app.close();
+});
