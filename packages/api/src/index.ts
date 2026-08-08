@@ -147,6 +147,7 @@ export const createApiServer = async (context: ApiContext): Promise<FastifyInsta
       context.jobs.set(job.id, ready); await save(ready); return { job: ready, preview: `/api/v1/jobs/${job.id}/preview` };
     }
     if (!isOfficeDocument(job.mimeType, job.fileName)) return reply.code(415).send({ error: { code: "UNSUPPORTED_FORMAT", message: "当前文件格式暂不支持预览" } });
+    if (!context.settings.officePreview) return reply.code(409).send({ error: { code: "OFFICE_PREVIEW_DISABLED", message: "当前设备未启用 Office 预览，请在设置中开启后重试" } });
     const probe = await context.platform.converter.probe();
     if (!probe.available) return reply.code(409).send({ error: { code: "PREVIEW_DEPENDENCY_MISSING", message: "未安装 LibreOffice，当前不支持 Office 文件预览" } });
     try {

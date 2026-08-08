@@ -158,3 +158,23 @@ test("encrypted files are blocked before preview and printing", async () => {
   assert.equal(prepare.json().error.code, "ENCRYPTED_FILE");
   await app.close();
 });
+
+test("office preview can be disabled as a safe downgrade", async () => {
+  const context = makeContext();
+  const job = {
+    id: "office-preview-disabled",
+    fileName: "report.docx",
+    mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    status: "uploaded" as const,
+    printerId: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  context.jobs.set(job.id, job);
+  context.files.set(job.id, "/tmp/report.docx");
+  const app = await createApiServer(context);
+  const response = await app.inject({ method: "POST", url: `/api/v1/jobs/${job.id}/prepare` });
+  assert.equal(response.statusCode, 409);
+  assert.equal(response.json().error.code, "OFFICE_PREVIEW_DISABLED");
+  await app.close();
+});
