@@ -110,8 +110,12 @@ export const createApiServer = async (context: ApiContext): Promise<FastifyInsta
       job.error = "文件疑似已被 E-safe 加密，请解密后重新上传";
     }
     context.jobs.set(id, job);
-    context.files.set(id, filePath);
-    if (isPdf(part.mimetype, part.filename) || isImage(part.mimetype, part.filename)) {
+    if (job.status === "blocked") {
+      await unlink(filePath).catch(() => undefined);
+    } else {
+      context.files.set(id, filePath);
+    }
+    if (job.status !== "blocked" && (isPdf(part.mimetype, part.filename) || isImage(part.mimetype, part.filename))) {
       context.previewFiles.set(id, filePath);
       context.previewTypes.set(id, part.mimetype.startsWith("image/") ? part.mimetype : "application/pdf");
     }
@@ -140,8 +144,9 @@ export const createApiServer = async (context: ApiContext): Promise<FastifyInsta
   app.post<{ Params: { id: string } }>("/api/v1/jobs/:id/prepare", async (request, reply) => {
     const job = context.jobs.get(request.params.id);
     const inputPath = context.files.get(request.params.id);
-    if (!job || !inputPath) return reply.code(404).send({ error: { code: "NOT_FOUND", message: "打印任务不存在" } });
+    if (!job) return reply.code(404).send({ error: { code: "NOT_FOUND", message: "打印任务不存在" } });
     if (job.status === "blocked") return reply.code(409).send({ error: { code: "ENCRYPTED_FILE", message: job.error ?? "文件已被阻断" } });
+    if (!inputPath) return reply.code(404).send({ error: { code: "NOT_FOUND", message: "打印任务文件不存在" } });
     if (isPdf(job.mimeType, job.fileName) || isImage(job.mimeType, job.fileName)) {
       const ready = { ...job, status: "ready" as const, updatedAt: now() };
       context.jobs.set(job.id, ready); await save(ready); return { job: ready, preview: `/api/v1/jobs/${job.id}/preview` };

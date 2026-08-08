@@ -153,6 +153,8 @@ test("encrypted files are blocked before preview and printing", async () => {
   const job = response.json().job;
   assert.equal(job.status, "blocked");
   assert.match(job.error, /E-safe/);
+  assert.equal(context.files.has(job.id), false);
+  assert.equal(context.previewFiles.has(job.id), false);
   const prepare = await app.inject({ method: "POST", url: `/api/v1/jobs/${job.id}/prepare` });
   assert.equal(prepare.statusCode, 409);
   assert.equal(prepare.json().error.code, "ENCRYPTED_FILE");
