@@ -23,15 +23,14 @@ python3 -m http.server 8080 --directory website
 
 首次发布前，需要在 GitHub 仓库的 **Settings → Pages → Build and deployment** 中将 Source 设置为 **GitHub Actions**。
 
-## 正式发布前需要替换
+## 发布维护清单
 
-- 将首页的 `PREVIEW` 标记替换为实际版本。
-- 将“正在构建中”替换为最新稳定版下载信息。
+- 首页会通过 GitHub API 自动读取最新公开 Release；如果 API 不可用，应保持静态文案可读。
 - 增加真实应用截图、安装说明和发行说明。
 - 确认项目版权主体和有效联系邮箱。
 - 配置自定义域名时增加 `CNAME` 文件。
 - 为社交分享增加 1200×630 的 Open Graph 图片，并在 `index.html` 中配置绝对地址。
-- 根据最终产品行为补充正式隐私声明。
+- 根据最终产品行为持续维护正式隐私声明。
 
 ## 设计原则
 

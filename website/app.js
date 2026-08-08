@@ -76,5 +76,5 @@ fetch('https://api.github.com/repos/remixjc/Magic-Printer/releases/latest', {
     }
   })
   .catch(() => {
-    if (releaseStatus) releaseStatus.textContent = 'COMING SOON';
+    if (releaseStatus) releaseStatus.textContent = 'RELEASES';
   });
