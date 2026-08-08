@@ -115,7 +115,7 @@ export function App() {
       const response = await fetch("/api/v1/uploads", { method: "POST", body: form });
       if (!response.ok) throw new Error((await response.json()).error?.message ?? "上传失败");
       const result = await response.json() as { job: PrintJob };
-      setPendingJobId(result.job.id); setFile(null); setMessage("文件已加入任务，请确认后开始打印"); await refresh();
+      setPendingJobId(result.job.id); setFile(null); setMessage(result.job.status === "blocked" ? "文件疑似已加密，请先解密后再打印" : "文件已加入任务，请确认后开始打印"); await refresh();
     } catch (error) { setMessage(error instanceof Error ? error.message : "上传失败"); }
   };
 

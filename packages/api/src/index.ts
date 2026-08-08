@@ -84,7 +84,7 @@ export const createApiServer = async (context: ApiContext): Promise<FastifyInsta
     const selected = context.settings.selectedPrinterId;
     const dependencies: DependencyStatus = {
       libreOffice: libreOffice.available ? libreOffice : { ...libreOffice, ...libreOfficeGuide() },
-      encryptionDetector: { available: false, provider: "adapter" }
+      encryptionDetector: { available: true, provider: "heuristic-local" }
     };
     return { printers, selectedPrinterId: selected, dependencies, settings: context.settings, security: { lanAccess: context.settings.server.lanAccess, pairingCode: isLoopback(request.ip) ? context.pairingCode : undefined, accessUrls: context.settings.server.lanAccess ? context.accessUrls?.() ?? [] : [] } };
   });
