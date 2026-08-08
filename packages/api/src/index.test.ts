@@ -29,6 +29,8 @@ test("health and capabilities expose local service state", async () => {
   const capabilities = await app.inject({ method: "GET", url: "/api/v1/capabilities" });
   assert.equal(health.statusCode, 200);
   assert.equal(health.json().requiresAuth, false);
+  assert.equal(health.headers["x-content-type-options"], "nosniff");
+  assert.equal(health.headers["x-frame-options"], "SAMEORIGIN");
   assert.equal(capabilities.statusCode, 200);
   assert.equal(capabilities.json().printers.length, 1);
   assert.match(capabilities.json().dependencies.libreOffice.installUrl, /^https:\/\//);

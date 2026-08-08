@@ -41,6 +41,13 @@ export const createApiServer = async (context: ApiContext): Promise<FastifyInsta
   const streams = new Map<string, Set<NodeJS.WritableStream>>();
   const emit = (job: PrintJob) => streams.get(job.id)?.forEach((stream) => stream.write(`data: ${JSON.stringify(job)}\n\n`));
   const save = async (job: PrintJob) => { await context.onJobChanged?.(job); emit(job); };
+  app.addHook("onSend", async (_request, reply) => {
+    reply.header("X-Content-Type-Options", "nosniff");
+    reply.header("Referrer-Policy", "no-referrer");
+    reply.header("X-Frame-Options", "SAMEORIGIN");
+    reply.header("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
+    reply.header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self'; connect-src 'self'");
+  });
   await app.register(cors, { origin: false });
   await app.register(multipart, { limits: { fileSize: 100 * 1024 * 1024, files: 1 } });
   if (context.staticDir) await app.register(staticPlugin, { root: context.staticDir, wildcard: false });
