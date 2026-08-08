@@ -36,8 +36,21 @@ class ElectronPrinterAdapter implements PrinterAdapter {
       systemName: printer.name,
       isDefault: printer.isDefault,
       status: printer.status === 0 ? "online" : "unknown",
-      capabilities: { paperSizes: [] }
+      capabilities: this.mapCapabilities(printer.options)
     }));
+  }
+
+  private mapCapabilities(rawOptions: unknown): PrinterInfo["capabilities"] {
+    const options = rawOptions && typeof rawOptions === "object" ? rawOptions as Record<string, unknown> : {};
+    const colorValue = options.color ?? options.colorMode ?? options.supportsColor;
+    const duplexValue = options.duplex ?? options.duplexMode ?? options.supportsDuplex;
+    const paperValue = options.paperSizes ?? options.mediaSizes ?? options.mediaSize;
+    const paperSizes = Array.isArray(paperValue)
+      ? paperValue.map((value) => typeof value === "string" ? value : (value && typeof value === "object" && "name" in value ? String(value.name) : "")).filter(Boolean)
+      : [];
+    const color = typeof colorValue === "boolean" ? colorValue : typeof colorValue === "string" ? !["mono", "monochrome", "grayscale", "black-and-white"].includes(colorValue.toLowerCase()) : undefined;
+    const duplex = typeof duplexValue === "boolean" ? duplexValue : typeof duplexValue === "string" ? !["none", "simplex", "false"].includes(duplexValue.toLowerCase()) : undefined;
+    return { ...(color === undefined ? {} : { color }), ...(duplex === undefined ? {} : { duplex }), paperSizes };
   }
 
   async printPdf(input: { filePath: string; printerId: string; options: PrintOptions }): Promise<{ nativeJobId?: string }> {
