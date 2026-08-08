@@ -56,6 +56,7 @@ class ElectronPrinterAdapter implements PrinterAdapter {
   async printPdf(input: { filePath: string; printerId: string; options: PrintOptions }): Promise<{ nativeJobId?: string }> {
     const target = this.host();
     await target.loadURL(pathToFileURL(input.filePath).toString());
+    const pageRanges = this.parsePageRanges(input.options.pageRange);
     await new Promise<void>((resolvePrint, reject) => target.webContents.print({
       silent: true,
       deviceName: input.printerId,
@@ -63,10 +64,24 @@ class ElectronPrinterAdapter implements PrinterAdapter {
       color: input.options.color === "color",
       landscape: input.options.orientation === "landscape",
       duplexMode: input.options.duplex === "none" ? "simplex" : input.options.duplex === "long-edge" ? "longEdge" : "shortEdge",
+      pageSize: input.options.paperSize as "A4" | "Letter",
+      ...(pageRanges ? { pageRanges } : {}),
       pagesPerSheet: 1,
       printBackground: true
     }, (success, reason) => success ? resolvePrint() : reject(new Error(reason || "打印失败"))));
     return {};
+  }
+
+  private parsePageRanges(value?: string): Array<{ from: number; to: number }> | undefined {
+    if (!value?.trim()) return undefined;
+    const ranges = value.split(",").map((part) => part.trim()).filter(Boolean).map((part) => {
+      const numbers = part.split("-").map((item) => Number(item.trim()));
+      const start = numbers[0] ?? NaN;
+      const end = numbers[1] ?? start;
+      if (!Number.isInteger(start) || !Number.isInteger(end) || start < 1 || end < start) return null;
+      return { from: start - 1, to: end - 1 };
+    });
+    return ranges.length > 0 && ranges.every(Boolean) ? ranges as Array<{ from: number; to: number }> : undefined;
   }
 
   async cancel(): Promise<void> { throw new Error("当前平台打印任务进入系统队列后暂不支持取消"); }
