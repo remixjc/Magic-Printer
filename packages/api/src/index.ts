@@ -46,7 +46,7 @@ export const createApiServer = async (context: ApiContext): Promise<FastifyInsta
     reply.header("Referrer-Policy", "no-referrer");
     reply.header("X-Frame-Options", "SAMEORIGIN");
     reply.header("Permissions-Policy", "camera=(), microphone=(), geolocation=()");
-    reply.header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self'; connect-src 'self'");
+    reply.header("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; frame-src 'self' blob:; connect-src 'self'");
   });
   await app.register(cors, { origin: false });
   await app.register(multipart, { limits: { fileSize: 100 * 1024 * 1024, files: 1 } });
@@ -57,7 +57,7 @@ export const createApiServer = async (context: ApiContext): Promise<FastifyInsta
     // Keep the browser shell and its assets publicly reachable on the LAN so
     // the web UI can render the six-digit pairing form. Only API requests
     // carrying protected data require the short-lived pairing token.
-    if (!context.settings.server.lanAccess || isLoopback(request.ip) || !request.url.startsWith("/api/") || request.url.startsWith("/api/v1/health") || request.url.startsWith("/api/v1/auth/pair")) return;
+    if (!context.settings.server.lanAccess || isLoopback(request.ip) || !request.url.startsWith("/api/") || request.url.startsWith("/api/v1/health") || request.url.startsWith("/api/v1/auth/pair") || request.url.startsWith("/api/v1/auth/pairing-code")) return;
     const presented = request.headers.authorization?.replace(/^Bearer\s+/i, "") ?? new URL(request.url, "http://localhost").searchParams.get("access_token");
     const expiresAt = presented ? sessions.get(presented) : undefined;
     if (!presented || !expiresAt || expiresAt <= Date.now()) {
@@ -67,6 +67,8 @@ export const createApiServer = async (context: ApiContext): Promise<FastifyInsta
   });
 
   app.get("/api/v1/health", async (request) => ({ ok: true, version: "0.1.0", now: now(), lanAccess: context.settings.server.lanAccess, requiresAuth: context.settings.server.lanAccess && !isLoopback(request.ip) }));
+
+  app.get("/api/v1/auth/pairing-code", async () => ({ pairingCode: context.pairingCode ?? null }));
 
   app.post<{ Body: { token?: string } }>("/api/v1/auth/pair", async (request, reply) => {
     const expected = context.pairingCode;

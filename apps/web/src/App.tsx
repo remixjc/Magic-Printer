@@ -33,6 +33,7 @@ export function App() {
   const [printOptions, setPrintOptions] = useState<PrintOptions>({ copies: 1, orientation: "portrait", color: "color", duplex: "none", paperSize: "A4" });
   const [security, setSecurity] = useState<{ lanAccess: boolean; pairingCode?: string; accessUrls?: string[] } | null>(null);
   const [pairingToken, setPairingToken] = useState("");
+  const [visiblePairingCode, setVisiblePairingCode] = useState<string | null>(null);
   const [authRequired, setAuthRequired] = useState(false);
   const selectedPrinter = printers.find((printer) => printer.id === selectedPrinterId);
   const printerCapabilities = selectedPrinter?.capabilities;
@@ -55,6 +56,14 @@ export function App() {
   };
 
   useEffect(() => { void refresh(); }, []);
+
+  useEffect(() => {
+    if (!authRequired) return;
+    void fetch("/api/v1/auth/pairing-code")
+      .then((response) => response.ok ? response.json() as Promise<{ pairingCode?: string | null }> : null)
+      .then((result) => setVisiblePairingCode(result?.pairingCode ?? null))
+      .catch(() => setVisiblePairingCode(null));
+  }, [authRequired]);
 
   useEffect(() => {
     if (!pendingJobId) return;
@@ -192,7 +201,7 @@ export function App() {
   };
 
   return <div className={`app-shell theme-${theme}`}>
-    {authRequired && <div className="auth-overlay"><div className="auth-card"><span className="app-mark">M</span><span className="kicker">LAN PAIRING</span><h2>输入配对验证码</h2><p>请在运行 Magic Printer 的电脑中打开“服务与安全”，查看当前显示的 6 位验证码。</p><div className="pairing-hint"><span>验证码来源</span><strong>桌面端显示的 6 位数字</strong></div><div className="code-inputs" onPaste={handlePairingPaste}>{Array.from({ length: 6 }, (_, index) => <input key={index} data-code-index={index} inputMode="numeric" maxLength={1} value={pairingToken[index] ?? ""} onChange={(event) => updatePairingDigit(index, event.target.value)} onKeyDown={(event) => handlePairingKey(index, event)} autoFocus={index === 0} aria-label={`验证码第 ${index + 1} 位`} />)}</div><button className="primary-button" disabled={pairingToken.length !== 6} onClick={() => void pair()}>连接</button><small>{message}</small></div></div>}
+    {authRequired && <div className="auth-overlay"><div className="auth-card"><span className="app-mark">M</span><span className="kicker">LAN PAIRING</span><h2>输入配对验证码</h2><p>请输入当前 Magic Printer 的 6 位验证码。</p>{visiblePairingCode && <div className="visible-pairing-code" aria-label="当前配对验证码"><span>当前验证码</span><strong>{visiblePairingCode}</strong></div>}<div className="pairing-hint"><span>验证码来源</span><strong>桌面端“服务与安全”区域</strong></div><div className="code-inputs" onPaste={handlePairingPaste}>{Array.from({ length: 6 }, (_, index) => <input key={index} data-code-index={index} inputMode="numeric" maxLength={1} value={pairingToken[index] ?? ""} onChange={(event) => updatePairingDigit(index, event.target.value)} onKeyDown={(event) => handlePairingKey(index, event)} autoFocus={index === 0} aria-label={`验证码第 ${index + 1} 位`} />)}</div><button className="primary-button" disabled={pairingToken.length !== 6} onClick={() => void pair()}>连接</button><small>{message}</small></div></div>}
     <header className="app-header"><div className="app-brand"><span className="app-mark">M</span><strong>Magic Printer</strong><span className="app-status"><i /> {message}</span></div><div className="header-actions"><span className="version">v0.1.0 preview</span><button className="ghost-button" onClick={() => void refresh()}>刷新</button></div></header>
     <div className="app-body">
       <aside className="app-sidebar"><button className="nav-item active" onClick={() => scrollTo("print-workspace")}>▣<span>打印</span></button><button className="nav-item" onClick={() => scrollTo("history")}>◴<span>记录</span></button><button className="nav-item" onClick={() => scrollTo("settings")}>⚙<span>设置</span></button></aside>
