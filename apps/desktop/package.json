@@ -31,7 +31,7 @@
     "icon": "build/icon.png",
     "directories": { "output": "../../release" },
     "files": ["dist/**/*", "package.json"],
-    "extraResources": [{ "from": "../web/dist", "to": "web" }],
+    "extraResources": [{ "from": "../web/dist", "to": "web" }, { "from": "build/icon.png", "to": "tray-icon.png" }],
     "mac": { "target": ["dmg", "zip"], "category": "public.app-category.utilities" },
     "win": { "target": ["nsis"] },
     "linux": { "target": ["AppImage", "deb"], "category": "Utility", "executableName": "magic-printer", "artifactName": "magic-printer-${version}-${arch}.${ext}" },

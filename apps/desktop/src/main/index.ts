@@ -21,8 +21,6 @@ let cleanupTimer: NodeJS.Timeout | null = null;
 let restartTimer: NodeJS.Timeout | null = null;
 let boundServer = { host: "127.0.0.1", port: 17890 };
 
-const traySvg = `<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="#0f1118"/><path d="M10 4h12v9H10zM8 12h16a4 4 0 0 1 4 4v7h-5v5H9v-5H4v-7a4 4 0 0 1 4-4Z" fill="#29264f" stroke="#9b91ff" stroke-width="1.8" stroke-linejoin="round"/><path d="M11 20h10v7H11z" fill="#fafaff"/><circle cx="24" cy="16" r="1.6" fill="#4ad6a0"/></svg>`;
-
 const getAccessUrls = () => Object.values(networkInterfaces()).flatMap((items) => (items ?? []).filter((item) => !item.internal && item.family === "IPv4").map((item) => `http://${item.address}:${boundServer.port}`));
 
 class ElectronPrinterAdapter implements PrinterAdapter {
@@ -111,10 +109,12 @@ const createWindow = async (url: string) => {
 };
 
 const createTray = (url: string) => {
-  const image = nativeImage.createFromDataURL(`data:image/svg+xml;base64,${Buffer.from(traySvg).toString("base64")}`);
+  const trayPath = app.isPackaged ? join(process.resourcesPath, "tray-icon.png") : resolve(app.getAppPath(), "build/icon.png");
+  const image = nativeImage.createFromPath(trayPath);
   if (image.isEmpty()) console.warn("Failed to load Magic Printer tray icon");
-  if (process.platform === "darwin") image.setTemplateImage(false);
-  tray = new Tray(image.resize({ width: 18, height: 18 }));
+  const trayImage = image.resize({ width: 18, height: 18 });
+  if (process.platform === "darwin") trayImage.setTemplateImage(false);
+  tray = new Tray(trayImage);
   tray.setToolTip("Magic Printer");
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: "打开 Magic Printer", click: () => { mainWindow?.show(); mainWindow?.focus(); } },
