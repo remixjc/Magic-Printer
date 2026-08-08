@@ -54,7 +54,10 @@ export const createApiServer = async (context: ApiContext): Promise<FastifyInsta
 
   const isLoopback = (ip: string) => ip === "127.0.0.1" || ip === "::1" || ip === "::ffff:127.0.0.1";
   app.addHook("onRequest", async (request, reply) => {
-    if (!context.settings.server.lanAccess || isLoopback(request.ip) || request.url.startsWith("/api/v1/health") || request.url.startsWith("/api/v1/auth/pair")) return;
+    // Keep the browser shell and its assets publicly reachable on the LAN so
+    // the web UI can render the six-digit pairing form. Only API requests
+    // carrying protected data require the short-lived pairing token.
+    if (!context.settings.server.lanAccess || isLoopback(request.ip) || !request.url.startsWith("/api/") || request.url.startsWith("/api/v1/health") || request.url.startsWith("/api/v1/auth/pair")) return;
     const presented = request.headers.authorization?.replace(/^Bearer\s+/i, "") ?? new URL(request.url, "http://localhost").searchParams.get("access_token");
     const expiresAt = presented ? sessions.get(presented) : undefined;
     if (!presented || !expiresAt || expiresAt <= Date.now()) {
