@@ -178,7 +178,9 @@ const bootstrap = async () => {
     encryption: new HeuristicEncryptionDetector(),
     converter
   };
-  const staticDir = resolve(app.getAppPath(), "../web/dist");
+  const staticDir = app.isPackaged
+    ? join(process.resourcesPath, "web")
+    : resolve(app.getAppPath(), "../web/dist");
   server = await createApiServer({
     dataDir,
     staticDir,
