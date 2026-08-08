@@ -145,7 +145,7 @@ export function App() {
       color: printer?.capabilities.color === false ? "grayscale" : current.color,
       duplex: printer?.capabilities.duplex === false ? "none" : current.duplex,
       paperSize: printer?.capabilities.paperSizes.length && !printer.capabilities.paperSizes.includes(current.paperSize)
-        ? printer.capabilities.paperSizes[0]
+        ? printer.capabilities.paperSizes[0] ?? current.paperSize
         : current.paperSize
     }));
     setMessage("打印机配置已保存");
