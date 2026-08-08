@@ -67,6 +67,14 @@ pnpm inspect:file -- "/path/to/document.docx"
 
 返回码为 `0` 表示未发现风险，返回码为 `10` 表示文件为 `encrypted` 或 `suspected`，返回码为 `1` 表示文件读取或检测失败。
 
+预览烟囱测试：
+
+```bash
+pnpm smoke:file -- "/path/to/document.docx"
+```
+
+该命令会先执行风险检测；普通 PDF/图片直接验证文件，Office 文件在 LibreOffice 可用时转换为临时 PDF。返回码 `10` 表示风险阻断，`20` 表示缺少 LibreOffice。
+
 ## 发布流程
 
 Release 工作流通过版本 Tag 触发。建议按以下顺序发布：

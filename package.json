@@ -13,6 +13,7 @@
     "typecheck": "pnpm -r build && pnpm -r typecheck",
     "test": "pnpm -r test",
     "inspect:file": "pnpm --filter @magic-printer/platform build && node scripts/inspect-file.mjs",
+    "smoke:file": "pnpm --filter @magic-printer/platform build && node scripts/preview-smoke.mjs",
     "lint": "pnpm -r lint"
   },
   "devDependencies": {
