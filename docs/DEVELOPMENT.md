@@ -98,6 +98,7 @@ Release 工作流通过版本 Tag 触发。建议按以下顺序发布：
 - `pnpm build`
 - 确认 Release workflow 的 `GITHUB_TOKEN` 具备 `contents: write` 权限。
 - 确认 Pages workflow 已启用 GitHub Pages，并使用 GitHub Actions 作为部署来源。
+- Release 会额外上传各平台 `SHA256SUMS-<platform>.txt`，用于下载后的完整性校验。
 
 ## 本地数据
 

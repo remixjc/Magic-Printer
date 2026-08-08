@@ -5,6 +5,7 @@
   "type": "module",
   "description": "Local-first cross-platform printing workspace",
   "author": "remixjc",
+  "repository": { "type": "git", "url": "https://github.com/remixjc/Magic-Printer.git" },
   "main": "dist/main/index.js",
   "scripts": {
     "dev": "pnpm build && electron .",
@@ -31,6 +32,7 @@
     "files": ["dist/**/*", "package.json", "../web/dist/**/*"],
     "mac": { "target": ["dmg", "zip"], "category": "public.app-category.utilities" },
     "win": { "target": ["nsis"] },
-    "linux": { "target": ["AppImage", "deb"], "category": "Utility" }
+    "linux": { "target": ["AppImage", "deb"], "category": "Utility" },
+    "publish": [{ "provider": "github", "owner": "remixjc", "repo": "Magic-Printer" }]
   }
 }

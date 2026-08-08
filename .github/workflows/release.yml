@@ -57,3 +57,25 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: pnpm exec electron-builder --${{ matrix.platform }} --publish always
+      - name: Generate release checksums
+        working-directory: apps/desktop
+        shell: bash
+        env:
+          RELEASE_PLATFORM: ${{ matrix.platform }}
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const crypto = require('node:crypto');
+          const path = require('node:path');
+          const dir = path.resolve('../../release');
+          const platform = process.env.RELEASE_PLATFORM;
+          const files = fs.readdirSync(dir).filter((name) => !name.startsWith('SHA256SUMS-'));
+          const lines = files.map((name) => {
+            const hash = crypto.createHash('sha256').update(fs.readFileSync(path.join(dir, name))).digest('hex');
+            return `${hash}  ${name}`;
+          });
+          const output = path.join(dir, `SHA256SUMS-${platform}.txt`);
+          fs.writeFileSync(output, `${lines.join('\n')}\n`);
+          console.log(output);
+          NODE
+          gh release upload "$GITHUB_REF_NAME" "../../release/SHA256SUMS-${RELEASE_PLATFORM}.txt" --clobber
