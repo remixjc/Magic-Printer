@@ -4,7 +4,11 @@ import type { AppSettings, DependencyStatus, PrintJob, PrinterInfo, PrintOptions
 const api = async <T,>(path: string, init?: RequestInit): Promise<T> => {
   const token = localStorage.getItem("magic-printer-access-token");
   const response = await fetch(`/api/v1${path}`, { ...init, headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(init?.headers ?? {}) } });
-  if (!response.ok) throw new Error((await response.json()).error?.message ?? "请求失败");
+  if (!response.ok) {
+    const raw = await response.text();
+    try { throw new Error((JSON.parse(raw) as { error?: { message?: string } }).error?.message ?? `请求失败（${response.status}）`); }
+    catch (error) { if (error instanceof Error && !error.message.startsWith("Unexpected token")) throw error; throw new Error(`请求失败（${response.status}）`); }
+  }
   return response.status === 204 ? (undefined as T) : response.json();
 };
 
@@ -93,7 +97,8 @@ export function App() {
       const settings = await api<AppSettings>("/settings");
       const lanAccess = !settings.server.lanAccess;
       await api<AppSettings>("/settings", { method: "PUT", body: JSON.stringify({ ...settings, server: { ...settings.server, host: lanAccess ? "0.0.0.0" : "127.0.0.1", lanAccess }, updatedAt: new Date().toISOString() }) });
-      await refresh(); setMessage(lanAccess ? "局域网访问已开启，服务正在重启" : "局域网访问已关闭，服务正在重启");
+      setMessage(lanAccess ? "局域网访问已开启，服务正在重启…" : "局域网访问已关闭，服务正在重启…");
+      window.setTimeout(() => void refresh(), 1200);
     } catch (error) { setMessage(error instanceof Error ? error.message : "网络设置保存失败"); }
   };
 
@@ -143,9 +148,11 @@ export function App() {
     try {
       const response = await fetch("/api/v1/uploads", { method: "POST", headers: accessHeaders(), body: form });
       if (!response.ok) {
-        const error = await response.json() as { error?: { code?: string; message?: string } };
+        const raw = await response.text();
+        let error: { error?: { code?: string; message?: string } } = {};
+        try { error = JSON.parse(raw) as typeof error; } catch { /* service may be restarting and return an empty/non-JSON response */ }
         if (response.status === 401 || error.error?.code === "AUTH_REQUIRED") setAuthRequired(true);
-        throw new Error(error.error?.message ?? "上传失败");
+        throw new Error(error.error?.message ?? `上传失败（${response.status}）`);
       }
       const result = await response.json() as { job: PrintJob };
       setPendingJobId(result.job.id); setFile(null); await refresh();
