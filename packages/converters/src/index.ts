@@ -48,9 +48,20 @@ export class LibreOfficeConverter implements DocumentConverter {
   }
 
   async convertToPdf(inputPath: string, outputDir: string): Promise<string> {
+    await mkdir(outputDir, { recursive: true });
+    // On macOS 27, LibreOffice 26.2 aborts while initializing NSApplication
+    // in headless mode. Use Apple's textutil for Word files first so the app
+    // does not invoke the crashing process at all.
+    if (process.platform === "darwin" && [".doc", ".docx"].includes(extname(inputPath).toLowerCase())) {
+      const htmlPath = join(outputDir, `${basename(inputPath, extname(inputPath))}.html`);
+      try {
+        await execFileAsync("/usr/bin/textutil", ["-convert", "html", "-output", htmlPath, inputPath], { timeout: 30_000 });
+        await access(htmlPath);
+        return htmlPath;
+      } catch { /* fall through to LibreOffice for older macOS installations */ }
+    }
     const probe = await this.probe();
     if (!probe.available || !probe.path) throw new Error("LibreOffice 未安装或不可用");
-    await mkdir(outputDir, { recursive: true });
     const userProfile = join(outputDir, ".lo-profile");
     await mkdir(userProfile, { recursive: true });
     try {
