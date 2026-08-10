@@ -8,7 +8,7 @@ const defaultSettings = (port = 17890): AppSettings => ({
   server: { host: "127.0.0.1", port, lanAccess: false },
   theme: "system",
   launchAtStartup: false,
-  officePreview: false,
+  officePreview: true,
   updatedAt: new Date().toISOString()
 });
 

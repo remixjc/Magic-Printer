@@ -2,7 +2,7 @@
 
 Magic Printer 是一个面向 Windows、macOS 和 Linux 的本地优先打印工作台。它将桌面托盘应用、浏览器打印界面和系统打印能力组合在一起，让用户可以在当前电脑上安全地选择打印机、上传文件、预览并提交打印任务。
 
-> 当前最新验证版本：`v0.1.8`。三平台 Release 已通过 GitHub Actions 构建并发布。
+> 当前最新验证版本：`v0.1.24`。本地类型检查、全量测试、三平台 CI 和 Release 构建均已通过。
 
 [![CI](https://github.com/remixjc/Magic-Printer/actions/workflows/ci.yml/badge.svg)](https://github.com/remixjc/Magic-Printer/actions/workflows/ci.yml)
 [![Release](https://github.com/remixjc/Magic-Printer/actions/workflows/release.yml/badge.svg)](https://github.com/remixjc/Magic-Printer/actions/workflows/release.yml)
@@ -21,14 +21,35 @@ Magic Printer 适合个人、教育、研究、公益和内部非商业场景。
 - 枚举本机打印机并配置默认打印设备
 - 本地 Web 服务和可选局域网访问，支持 6 位数字配对码
 - 图片、PDF、Word、Excel 等常见文件上传
-- 图片/PDF 预览；Office 文件通过 LibreOffice 转换为 PDF 后预览
-- LibreOffice 缺失检测、安装提示和安全降级（关闭预览但保留必要流程）
-- 打印参数：份数、纸张、方向、颜色、双面和页码范围
+- 图片/PDF 预览；Office 文件通过 LibreOffice 转换为 PDF 后预览，macOS Word 文件提供系统转换回退路径
+- 预览完成后可直接选择新文件；删除打印记录前显示确认提示
+- 桌面端“应用设置”支持开关 Office 预览；新安装默认开启，关闭后仍可保留其他必要流程
+- 打印参数：份数、纸张、方向、颜色、双面、页码范围和纸张版式
+- A4 版式支持“全张”和“半张（A4 发票）”；半张模式仍使用 A4 纸，通过两页/张布局缩放，不等同于选择 A5 纸
+- 打印任务阶段进度：排队中、打印中、打印成功或打印失败；成功后显示提醒
+- 根据打印机能力自动配置颜色、双面和纸张选项；黑白设备自动使用灰度模式
+- macOS PDF 优先通过系统 CUPS 打印队列发送，避免经过 Electron PDF 查看器打印路径
 - 最近七天打印记录，本地查看并支持主动删除
 - 自动、深色、浅色主题，整体风格接近 VS Code 默认主题
 - 本地启发式加密文件风险拦截：疑似 E-safe/Esafenet 文件会阻断预览和打印
 - GitHub Pages 项目介绍页、GitHub Actions CI、三平台 Release 和 SHA256 校验和
 - `electron-updater` 自动更新配置，可通过 GitHub Release 分发更新
+
+## 桌面端与 Web 端
+
+- 桌面客户端通过本机地址访问，保留“服务与安全”和“应用设置”，用于配置局域网访问、端口、主题、开机启动和 Office 预览。
+- 通过局域网地址访问的 Web 客户端只提供打印、预览和记录功能，不展示上述本地管理区域，也不展示左侧“设置”入口。
+- 局域网访问必须由桌面端主动开启，并使用 6 位配对码建立会话。
+
+## 打印发票
+
+发票半张模式的目标是“在一张 A4 纸上打印半张大小的内容”，不是使用 A5 纸：
+
+1. 纸张选择 `A4`。
+2. 版式选择 `半张（A4 发票）`。
+3. 应用会以两页/张参数提交到系统打印队列，适合标准半张发票场景。
+
+如果选择实际的 `A5` 纸张，那代表打印机纸盒中装的是 A5 纸，不属于发票半张版式。
 
 ## 风险文件拦截
 
@@ -69,7 +90,7 @@ pnpm inspect:file -- "/path/to/document"
 pnpm smoke:file -- "/path/to/document"
 ```
 
-Office 预览需要本机安装 LibreOffice。缺少该工具时，应用会给出对应系统的官方下载入口和安装建议；用户也可以选择不安装，此时 Web 界面不会展示预览功能。
+PDF 和常见图片可以直接预览。新安装默认开启 Office 预览；Excel 文档通常需要本机安装 LibreOffice，缺少该工具时应用会给出官方下载入口和安装建议。macOS 上的 `.doc/.docx` 文件还会尝试使用系统 `textutil` 转换，因此不一定需要 LibreOffice。若设备沿用了旧配置，请在桌面端“应用设置 → Office 预览”中确认已开启。
 
 ## 工作区结构
 
@@ -91,6 +112,7 @@ docs/               产品、技术、开发和验收文档
 
 - Web 服务默认只监听 `127.0.0.1`。
 - 开启局域网访问后，必须先使用界面展示的 6 位配对码建立短期会话。
+- 局域网 Web 客户端不展示本地服务配置和应用设置，降低远程设备修改本机配置的风险。
 - 上传文件和打印记录默认保存在本机；记录保留七天并可手动删除。
 - 不建议将服务直接暴露到公网；如确有需要，应使用受控 VPN 或经过认证的反向代理。
 - 应用不会绕过文档权限、破解加密或尝试解密 E-safe 文件。
@@ -109,6 +131,8 @@ docs/               产品、技术、开发和验收文档
 ## 构建与发布
 
 推送 `v*.*.*` 标签会触发 `.github/workflows/release.yml`，自动完成依赖安装、Electron 原生模块重建、三平台打包、GitHub Release 上传和 SHA256 校验和生成。当前公开工作流生成未签名 macOS 包；配置 Apple Developer 证书后可进一步启用签名与公证。
+
+当前公开版本为 `v0.1.24`，包含打印链路、预览布局、A4 发票版式、打印进度和 Web 访问边界的更新。
 
 GitHub Pages 由 `.github/workflows/pages.yml` 自动部署，发布来源应设置为 **GitHub Actions**。
 

@@ -157,9 +157,10 @@ export const createApiServer = async (context: ApiContext): Promise<FastifyInsta
       context.jobs.set(job.id, ready); await save(ready); return { job: ready, preview: `/api/v1/jobs/${job.id}/preview`, mimeType: context.previewTypes.get(job.id) ?? "application/pdf" };
     }
     if (!isOfficeDocument(job.mimeType, job.fileName)) return reply.code(415).send({ error: { code: "UNSUPPORTED_FORMAT", message: "当前文件格式暂不支持预览" } });
-    if (!context.settings.officePreview) return reply.code(409).send({ error: { code: "OFFICE_PREVIEW_DISABLED", message: "当前设备未启用 Office 预览，请在设置中开启后重试" } });
+    if (!context.settings.officePreview) return reply.code(409).send({ error: { code: "OFFICE_PREVIEW_DISABLED", message: "Office 预览未启用，请在桌面端“应用设置”中开启后重试" } });
+    const isMacWordFallback = process.platform === "darwin" && [".doc", ".docx"].includes(extname(job.fileName).toLowerCase());
     const probe = await context.platform.converter.probe();
-    if (!probe.available) return reply.code(409).send({ error: { code: "PREVIEW_DEPENDENCY_MISSING", message: "未安装 LibreOffice，当前不支持 Office 文件预览" } });
+    if (!probe.available && !isMacWordFallback) return reply.code(409).send({ error: { code: "PREVIEW_DEPENDENCY_MISSING", message: "未安装 LibreOffice，当前不支持该 Office 文件预览" } });
     try {
       const outputDir = join(context.dataDir, "previews", job.id);
       const pdfPath = await context.platform.converter.convertToPdf(inputPath, outputDir);
