@@ -5,7 +5,7 @@ import staticPlugin from "@fastify/static";
 import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { mkdir, unlink, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { extname, join } from "node:path";
 import type { AppSettings, DependencyStatus, PrintJob } from "@magic-printer/shared";
 import { appSettingsSchema, printOptionsSchema } from "@magic-printer/shared";
 import type { PlatformServices } from "@magic-printer/platform";
@@ -164,9 +164,10 @@ export const createApiServer = async (context: ApiContext): Promise<FastifyInsta
       const outputDir = join(context.dataDir, "previews", job.id);
       const pdfPath = await context.platform.converter.convertToPdf(inputPath, outputDir);
       context.previewFiles.set(job.id, pdfPath);
-      context.previewTypes.set(job.id, "application/pdf");
+      context.previewTypes.set(job.id, extname(pdfPath).toLowerCase() === ".html" ? "text/html" : "application/pdf");
       const ready = { ...job, status: "ready" as const, updatedAt: now() };
-      context.jobs.set(job.id, ready); await save(ready); return { job: ready, preview: `/api/v1/jobs/${job.id}/preview`, mimeType: "application/pdf" };
+      const mimeType = context.previewTypes.get(job.id) ?? "application/pdf";
+      context.jobs.set(job.id, ready); await save(ready); return { job: ready, preview: `/api/v1/jobs/${job.id}/preview`, mimeType };
     } catch (error) { return reply.code(422).send({ error: { code: "CONVERSION_FAILED", message: error instanceof Error ? error.message : "文档转换失败" } }); }
   });
 

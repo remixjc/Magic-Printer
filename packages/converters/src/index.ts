@@ -53,19 +53,33 @@ export class LibreOfficeConverter implements DocumentConverter {
     await mkdir(outputDir, { recursive: true });
     const userProfile = join(outputDir, ".lo-profile");
     await mkdir(userProfile, { recursive: true });
-    await execFileAsync(probe.path, [
-      "--headless",
-      "--nologo",
-      "--nodefault",
-      "--nofirststartwizard",
-      `-env:UserInstallation=${pathToFileURL(userProfile).toString()}`,
-      "--convert-to", "pdf",
-      "--outdir", outputDir,
-      inputPath
-    ], { timeout: 120_000, windowsHide: true });
-    const expected = join(outputDir, `${basename(inputPath, extname(inputPath))}.pdf`);
-    try { await access(expected); } catch { throw new Error("LibreOffice 未生成预览文件"); }
-    return expected;
+    try {
+      await execFileAsync(probe.path, [
+        "--headless",
+        "--nologo",
+        "--nodefault",
+        "--nofirststartwizard",
+        `-env:UserInstallation=${pathToFileURL(userProfile).toString()}`,
+        "--convert-to", "pdf",
+        "--outdir", outputDir,
+        inputPath
+      ], { timeout: 120_000, windowsHide: true });
+      const expected = join(outputDir, `${basename(inputPath, extname(inputPath))}.pdf`);
+      try { await access(expected); return expected; } catch { throw new Error("LibreOffice 未生成预览文件"); }
+    } catch (error) {
+      // Some macOS LibreOffice builds abort in headless mode. Use the native
+      // textutil converter for Word documents so preview/printing can still
+      // proceed instead of leaving the job stuck in a loading state.
+      if (process.platform === "darwin" && [".doc", ".docx"].includes(extname(inputPath).toLowerCase())) {
+        const htmlPath = join(outputDir, `${basename(inputPath, extname(inputPath))}.html`);
+        try {
+          await execFileAsync("/usr/bin/textutil", ["-convert", "html", "-output", htmlPath, inputPath], { timeout: 30_000 });
+          await access(htmlPath);
+          return htmlPath;
+        } catch { /* report the original conversion failure below */ }
+      }
+      throw new Error(error instanceof Error ? `Office 预览转换失败：${error.message}` : "Office 预览转换失败");
+    }
   }
 }
 

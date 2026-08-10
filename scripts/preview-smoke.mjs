@@ -41,7 +41,7 @@ if (!probe.available) {
 const outputDir = join("/tmp", `magic-printer-smoke-${Date.now()}`);
 try {
   const pdfPath = await converter.convertToPdf(filePath, outputDir);
-  result.preview = { ready: true, type: "pdf", path: pdfPath, size: (await stat(pdfPath)).size, converter: probe.version ?? probe.path };
+  result.preview = { ready: true, type: extname(pdfPath).toLowerCase() === ".html" ? "html" : "pdf", path: pdfPath, size: (await stat(pdfPath)).size, converter: probe.version ?? probe.path };
   console.log(JSON.stringify(result, null, 2));
   process.exitCode = 0;
 } finally {

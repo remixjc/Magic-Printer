@@ -180,3 +180,34 @@ test("office preview can be disabled as a safe downgrade", async () => {
   assert.equal(response.json().error.code, "OFFICE_PREVIEW_DISABLED");
   await app.close();
 });
+
+test("deleting a print job removes the record and local file references", async () => {
+  const context = makeContext();
+  const dataDir = join("/tmp", `magic-printer-api-delete-${Date.now()}`);
+  await mkdir(dataDir, { recursive: true });
+  const filePath = join(dataDir, "delete-me.pdf");
+  await writeFile(filePath, "%PDF-1.4\n%%EOF\n");
+  const job = {
+    id: "delete-job",
+    fileName: "delete-me.pdf",
+    mimeType: "application/pdf",
+    status: "ready" as const,
+    printerId: null,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  context.jobs.set(job.id, job);
+  context.files.set(job.id, filePath);
+  context.previewFiles.set(job.id, filePath);
+  let persistedDelete = false;
+  context.onJobDeleted = (id) => { persistedDelete = id === job.id; };
+  const app = await createApiServer(context);
+  const response = await app.inject({ method: "DELETE", url: `/api/v1/jobs/${job.id}` });
+  assert.equal(response.statusCode, 204);
+  assert.equal(context.jobs.has(job.id), false);
+  assert.equal(context.files.has(job.id), false);
+  assert.equal(context.previewFiles.has(job.id), false);
+  assert.equal(persistedDelete, true);
+  await app.close();
+  await rm(dataDir, { recursive: true, force: true });
+});
