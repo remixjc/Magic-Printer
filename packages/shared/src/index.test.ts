@@ -8,6 +8,7 @@ test("print options apply safe defaults", () => {
     orientation: "portrait",
     color: "color",
     duplex: "none",
-    paperSize: "A4"
+    paperSize: "A4",
+    paperLayout: "full"
   });
 });

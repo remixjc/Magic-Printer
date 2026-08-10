@@ -55,7 +55,8 @@ export const printOptionsSchema = z.object({
   orientation: z.enum(["portrait", "landscape"]).default("portrait"),
   color: z.enum(["color", "grayscale"]).default("color"),
   duplex: z.enum(["none", "long-edge", "short-edge"]).default("none"),
-  paperSize: z.string().max(32).default("A4")
+  paperSize: z.string().max(32).default("A4"),
+  paperLayout: z.enum(["full", "half"]).default("full")
 });
 
 export type PrintOptions = z.infer<typeof printOptionsSchema>;

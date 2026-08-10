@@ -1,15 +1,18 @@
 import { app, BrowserWindow, Menu, Tray, nativeImage, shell, dialog } from "electron";
+import { execFile } from "node:child_process";
 import { randomInt } from "node:crypto";
 import { networkInterfaces } from "node:os";
-import { rm } from "node:fs/promises";
-import { join, resolve } from "node:path";
+import { access, readdir, rm } from "node:fs/promises";
+import { extname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createApiServer } from "@magic-printer/api";
 import { LocalDatabase } from "@magic-printer/database";
 import { HeuristicEncryptionDetector, LibreOfficeConverter, type PlatformServices, type PrinterAdapter } from "@magic-printer/platform";
-import type { PrinterInfo, PrintOptions } from "@magic-printer/shared";
+import type { AppSettings, PrinterInfo, PrintOptions } from "@magic-printer/shared";
 import electronUpdater from "electron-updater";
+import { promisify } from "node:util";
 const { autoUpdater } = electronUpdater;
+const execFileAsync = promisify(execFile);
 
 let mainWindow: BrowserWindow | null = null;
 let printWindow: BrowserWindow | null = null;
@@ -34,24 +37,31 @@ class ElectronPrinterAdapter implements PrinterAdapter {
       systemName: printer.name,
       isDefault: printer.isDefault,
       status: printer.status === 0 ? "online" : "unknown",
-      capabilities: this.mapCapabilities(printer.options)
+      capabilities: this.mapCapabilities(printer.options, `${printer.name} ${printer.displayName || ""}`)
     }));
   }
 
-  private mapCapabilities(rawOptions: unknown): PrinterInfo["capabilities"] {
+  private mapCapabilities(rawOptions: unknown, printerName = ""): PrinterInfo["capabilities"] {
     const options = rawOptions && typeof rawOptions === "object" ? rawOptions as Record<string, unknown> : {};
+    const isHpM427dw = /m427dw/i.test(printerName);
     const colorValue = options.color ?? options.colorMode ?? options.supportsColor;
     const duplexValue = options.duplex ?? options.duplexMode ?? options.supportsDuplex;
     const paperValue = options.paperSizes ?? options.mediaSizes ?? options.mediaSize;
-    const paperSizes = Array.isArray(paperValue)
+    const detectedPaperSizes = Array.isArray(paperValue)
       ? paperValue.map((value) => typeof value === "string" ? value : (value && typeof value === "object" && "name" in value ? String(value.name) : "")).filter(Boolean)
       : [];
-    const color = typeof colorValue === "boolean" ? colorValue : typeof colorValue === "string" ? !["mono", "monochrome", "grayscale", "black-and-white"].includes(colorValue.toLowerCase()) : undefined;
-    const duplex = typeof duplexValue === "boolean" ? duplexValue : typeof duplexValue === "string" ? !["none", "simplex", "false"].includes(duplexValue.toLowerCase()) : undefined;
+    const paperSizes = isHpM427dw
+      ? [...new Set([...detectedPaperSizes, "A4", "A5", "A6", "Letter", "Legal"])]
+      : detectedPaperSizes;
+    const color = typeof colorValue === "boolean" ? colorValue : typeof colorValue === "string" ? !["mono", "monochrome", "grayscale", "black-and-white", "false", "0", "no", "off"].includes(colorValue.toLowerCase()) : isHpM427dw ? false : undefined;
+    const duplex = typeof duplexValue === "boolean" ? duplexValue : typeof duplexValue === "string" ? !["none", "simplex", "false", "0", "no", "off"].includes(duplexValue.toLowerCase()) : isHpM427dw ? true : undefined;
     return { ...(color === undefined ? {} : { color }), ...(duplex === undefined ? {} : { duplex }), paperSizes };
   }
 
   async printPdf(input: { filePath: string; printerId: string; options: PrintOptions }): Promise<{ nativeJobId?: string }> {
+    if (process.platform === "darwin" && extname(input.filePath).toLowerCase() === ".pdf") {
+      return this.printPdfWithCups(input);
+    }
     const target = this.host();
     await target.loadURL(pathToFileURL(input.filePath).toString());
     const pageRanges = this.parsePageRanges(input.options.pageRange);
@@ -62,12 +72,38 @@ class ElectronPrinterAdapter implements PrinterAdapter {
       color: input.options.color === "color",
       landscape: input.options.orientation === "landscape",
       duplexMode: input.options.duplex === "none" ? "simplex" : input.options.duplex === "long-edge" ? "longEdge" : "shortEdge",
-      pageSize: input.options.paperSize as "A4" | "Letter",
+      pageSize: input.options.paperSize as "A4" | "A5" | "A6" | "Letter" | "Legal",
       ...(pageRanges ? { pageRanges } : {}),
-      pagesPerSheet: 1,
-      printBackground: true
+      pagesPerSheet: input.options.paperLayout === "half" ? 2 : 1,
+      printBackground: false
     }, (success, reason) => success ? resolvePrint() : reject(new Error(reason || "打印失败"))));
     return {};
+  }
+
+  private async printPdfWithCups(input: { filePath: string; printerId: string; options: PrintOptions }): Promise<{ nativeJobId?: string }> {
+    const duplex = input.options.duplex === "none"
+      ? "one-sided"
+      : input.options.duplex === "long-edge"
+        ? "two-sided-long-edge"
+        : "two-sided-short-edge";
+    const args = [
+      "-d", input.printerId,
+      "-n", String(input.options.copies),
+      "-o", `media=${input.options.paperSize}`,
+      "-o", `sides=${duplex}`,
+      "-o", `number-up=${input.options.paperLayout === "half" ? 2 : 1}`,
+      "-o", `orientation-requested=${input.options.orientation === "landscape" ? 4 : 3}`
+    ];
+    if (input.options.color === "grayscale") args.push("-o", "ColorModel=Gray");
+    if (input.options.pageRange) args.push("-P", input.options.pageRange);
+    args.push(input.filePath);
+    try {
+      const result = await execFileAsync("/usr/bin/lp", args, { timeout: 30_000 });
+      const nativeJobId = result.stdout.match(/request id is\s+([^\s]+)/i)?.[1];
+      return nativeJobId ? { nativeJobId } : {};
+    } catch (error) {
+      throw new Error(error instanceof Error ? `系统打印服务提交失败：${error.message}` : "系统打印服务提交失败");
+    }
   }
 
   private parsePageRanges(value?: string): Array<{ from: number; to: number }> | undefined {
@@ -171,6 +207,29 @@ const bootstrap = async () => {
   const files = new Map<string, string>();
   const previewFiles = new Map<string, string>();
   const previewTypes = new Map<string, string>();
+  await Promise.all([...jobs.values()].map(async (job) => {
+    if (job.status === "blocked") return;
+    const safeName = job.fileName.replace(/[^a-zA-Z0-9._-]/g, "_").slice(0, 160) || "document";
+    const filePath = join(dataDir, "uploads", job.id, safeName);
+    try { await access(filePath); } catch { return; }
+    files.set(job.id, filePath);
+    const extension = extname(job.fileName).toLowerCase();
+    if (job.mimeType.startsWith("image/") || extension === ".pdf") {
+      previewFiles.set(job.id, filePath);
+      previewTypes.set(job.id, job.mimeType.startsWith("image/") ? job.mimeType : "application/pdf");
+      return;
+    }
+    if (job.status !== "ready") return;
+    try {
+      const entries = await readdir(join(dataDir, "previews", job.id));
+      const previewName = entries.find((name) => [".pdf", ".html"].includes(extname(name).toLowerCase()));
+      if (previewName) {
+        const previewPath = join(dataDir, "previews", job.id, previewName);
+        previewFiles.set(job.id, previewPath);
+        previewTypes.set(job.id, extname(previewName).toLowerCase() === ".html" ? "text/html" : "application/pdf");
+      }
+    } catch { /* no persisted preview is available */ }
+  }));
   const converter = new LibreOfficeConverter();
   const pairingCode = String(randomInt(100000, 1000000));
   const platform: PlatformServices = {
@@ -182,10 +241,40 @@ const bootstrap = async () => {
   const staticDir = app.isPackaged
     ? join(process.resourcesPath, "web")
     : resolve(app.getAppPath(), "../web/dist");
-  server = await createApiServer({
+  let appliedLaunchAtStartup = settings.launchAtStartup;
+  let createConfiguredServer: (nextSettings: AppSettings) => ReturnType<typeof createApiServer>;
+  const scheduleServerRestart = (next: AppSettings) => {
+    database?.writeSettings(next);
+    if (next.launchAtStartup !== appliedLaunchAtStartup) {
+      appliedLaunchAtStartup = next.launchAtStartup;
+      if (!(process.platform === "darwin" && !app.isPackaged)) {
+        try {
+          app.setLoginItemSettings({ openAtLogin: next.launchAtStartup, openAsHidden: true, args: ["--hidden"] });
+        } catch (error) {
+          console.warn("Unable to update login item", error);
+        }
+      }
+    }
+    if (next.server.host === boundServer.host && next.server.port === boundServer.port) return;
+    if (restartTimer) clearTimeout(restartTimer);
+    const portChanged = next.server.port !== boundServer.port;
+    restartTimer = setTimeout(() => {
+      void (async () => {
+        const previousServer = server;
+        server = null;
+        if (previousServer) await previousServer.close();
+        boundServer = { host: next.server.host, port: next.server.port };
+        const replacement = await createConfiguredServer(next);
+        await replacement.listen(boundServer);
+        server = replacement;
+        if (portChanged) await mainWindow?.loadURL(`http://127.0.0.1:${boundServer.port}`);
+      })().catch((error) => console.error("Failed to restart local service", error));
+    }, 0);
+  };
+  createConfiguredServer = (nextSettings) => createApiServer({
     dataDir,
     staticDir,
-    settings,
+    settings: nextSettings,
     jobs,
     files,
     previewFiles,
@@ -193,29 +282,16 @@ const bootstrap = async () => {
     pairingCode,
     accessUrls: getAccessUrls,
     platform,
-    onSettingsChanged: (next) => {
-      database?.writeSettings(next);
-      app.setLoginItemSettings({ openAtLogin: next.launchAtStartup, openAsHidden: true, args: ["--hidden"] });
-      if (next.server.host !== boundServer.host || next.server.port !== boundServer.port) {
-        if (restartTimer) clearTimeout(restartTimer);
-        restartTimer = setTimeout(() => {
-          void (async () => {
-            if (!server) return;
-            await server.close();
-            boundServer = { host: next.server.host, port: next.server.port };
-            await server.listen(boundServer);
-            await mainWindow?.loadURL(`http://127.0.0.1:${boundServer.port}`);
-          })().catch((error) => console.error("Failed to restart local service", error));
-        }, 0);
-      }
-    },
+    onSettingsChanged: scheduleServerRestart,
     onJobChanged: (job) => database?.saveJob(job),
     onJobDeleted: (id) => { database?.deleteJob(id); }
   });
+  server = await createConfiguredServer(settings);
   await server.listen({ host: settings.server.host, port: settings.server.port });
-  const url = `http://${settings.server.host}:${settings.server.port}`;
-  await createWindow(url);
-  createTray(url);
+  const localUrl = `http://127.0.0.1:${settings.server.port}`;
+  const accessUrl = `http://${settings.server.host}:${settings.server.port}`;
+  await createWindow(localUrl);
+  createTray(accessUrl);
   configureUpdater();
   if (process.argv.includes("--hidden")) mainWindow?.hide();
 };

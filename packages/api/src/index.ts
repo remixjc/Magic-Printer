@@ -36,7 +36,7 @@ const libreOfficeGuide = () => {
 };
 
 export const createApiServer = async (context: ApiContext): Promise<FastifyInstance> => {
-  const app = Fastify({ logger: true, bodyLimit: 100 * 1024 * 1024 });
+  const app = Fastify({ logger: true, bodyLimit: 100 * 1024 * 1024, forceCloseConnections: true });
   const sessions = new Map<string, number>();
   const streams = new Map<string, Set<NodeJS.WritableStream>>();
   const emit = (job: PrintJob) => streams.get(job.id)?.forEach((stream) => stream.write(`data: ${JSON.stringify(job)}\n\n`));
@@ -91,7 +91,7 @@ export const createApiServer = async (context: ApiContext): Promise<FastifyInsta
       libreOffice: libreOffice.available ? libreOffice : { ...libreOffice, ...libreOfficeGuide() },
       encryptionDetector: { available: true, provider: "heuristic-local" }
     };
-    return { printers, selectedPrinterId: selected, dependencies, settings: context.settings, security: { lanAccess: context.settings.server.lanAccess, pairingCode: isLoopback(request.ip) ? context.pairingCode : undefined, accessUrls: context.settings.server.lanAccess ? context.accessUrls?.() ?? [] : [] } };
+    return { isLocalClient: isLoopback(request.ip), printers, selectedPrinterId: selected, dependencies, settings: context.settings, security: { lanAccess: context.settings.server.lanAccess, pairingCode: isLoopback(request.ip) ? context.pairingCode : undefined, accessUrls: context.settings.server.lanAccess ? context.accessUrls?.() ?? [] : [] } };
   });
 
   app.get("/api/v1/jobs", async () => ({ jobs: [...context.jobs.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt)) }));
@@ -190,6 +190,7 @@ export const createApiServer = async (context: ApiContext): Promise<FastifyInsta
     if (!printer) return reply.code(409).send({ error: { code: "PRINTER_NOT_FOUND", message: "已配置的打印机当前不可用，请重新选择打印机" } });
     if (parsed.data.color === "color" && printer.capabilities.color === false) return reply.code(409).send({ error: { code: "UNSUPPORTED_COLOR", message: "当前打印机不支持彩色打印" } });
     if (parsed.data.duplex !== "none" && printer.capabilities.duplex === false) return reply.code(409).send({ error: { code: "UNSUPPORTED_DUPLEX", message: "当前打印机不支持双面打印" } });
+    if (parsed.data.paperLayout === "half" && parsed.data.paperSize !== "A4") return reply.code(409).send({ error: { code: "HALF_LAYOUT_REQUIRES_A4", message: "半张发票版式必须使用 A4 纸张" } });
     if (printer.capabilities.paperSizes.length > 0 && !printer.capabilities.paperSizes.includes(parsed.data.paperSize)) return reply.code(409).send({ error: { code: "UNSUPPORTED_PAPER", message: `当前打印机不支持 ${parsed.data.paperSize} 纸张` } });
     const update = async (status: PrintJob["status"], error?: string) => {
       const { error: _oldError, ...withoutError } = job;

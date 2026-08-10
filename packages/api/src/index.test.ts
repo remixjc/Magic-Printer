@@ -32,6 +32,7 @@ test("health and capabilities expose local service state", async () => {
   assert.equal(health.headers["x-content-type-options"], "nosniff");
   assert.equal(health.headers["x-frame-options"], "SAMEORIGIN");
   assert.equal(capabilities.statusCode, 200);
+  assert.equal(capabilities.json().isLocalClient, true);
   assert.equal(capabilities.json().printers.length, 1);
   assert.match(capabilities.json().dependencies.libreOffice.installUrl, /^https:\/\//);
   assert.equal(typeof capabilities.json().dependencies.libreOffice.installCommand, "string");
@@ -79,11 +80,12 @@ test("print options are rejected when printer capabilities do not support them",
     capabilities: { color: false, duplex: false, paperSizes: ["A4"] }
   };
   context.settings.selectedPrinterId = printer.id;
+  let receivedOptions: { paperLayout?: string } | undefined;
   context.platform = {
     ...context.platform,
     printers: {
       listPrinters: async () => [printer],
-      printPdf: async () => ({}),
+      printPdf: async (input) => { receivedOptions = input.options; return {}; },
       cancel: async () => undefined
     }
   };
@@ -104,6 +106,12 @@ test("print options are rejected when printer capabilities do not support them",
   const response = await app.inject({ method: "POST", url: `/api/v1/jobs/${job.id}/print`, payload: { color: "color", duplex: "long-edge", paperSize: "A4" } });
   assert.equal(response.statusCode, 409);
   assert.equal(response.json().error.code, "UNSUPPORTED_COLOR");
+  const halfOnA5 = await app.inject({ method: "POST", url: `/api/v1/jobs/${job.id}/print`, payload: { color: "grayscale", duplex: "none", paperSize: "A5", paperLayout: "half" } });
+  assert.equal(halfOnA5.statusCode, 409);
+  assert.equal(halfOnA5.json().error.code, "HALF_LAYOUT_REQUIRES_A4");
+  const halfOnA4 = await app.inject({ method: "POST", url: `/api/v1/jobs/${job.id}/print`, payload: { color: "grayscale", duplex: "none", paperSize: "A4", paperLayout: "half" } });
+  assert.equal(halfOnA4.statusCode, 200);
+  assert.equal(receivedOptions?.paperLayout, "half");
   await app.close();
   await rm(dataDir, { recursive: true, force: true });
 });
